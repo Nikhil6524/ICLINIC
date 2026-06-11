@@ -74,9 +74,6 @@ class AuthService:
         )
         self._store_refresh_token(user.id, refresh_token)
 
-        # Single commit
-        self.db.commit()
-
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
@@ -123,9 +120,6 @@ class AuthService:
             user_id=str(user.id)
         )
         self._store_refresh_token(user.id, refresh_token)
-
-        # Single commit
-        self.db.commit()
 
         return {
             "access_token": access_token,
@@ -187,9 +181,6 @@ class AuthService:
         )
         self._store_refresh_token(user.id, new_refresh_token)
 
-        # Single commit
-        self.db.commit()
-
         return {
             "access_token": access_token,
             "refresh_token": new_refresh_token,
@@ -202,7 +193,6 @@ class AuthService:
 
         if stored_token and not stored_token.is_revoked:
             self.refresh_token_repo.revoke(stored_token)
-            self.db.commit()
 
     def _store_refresh_token(self, user_id, raw_token: str) -> None:
         token_hash = self._hash_token(raw_token)

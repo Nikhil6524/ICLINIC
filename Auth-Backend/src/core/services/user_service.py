@@ -42,7 +42,6 @@ class UserService:
             )
 
         user.profile_completed = True
-        self.db.commit()
 
     def get_all_users(self) -> list[dict]:
         users = self.user_repo.get_all()
@@ -67,7 +66,6 @@ class UserService:
                 detail="User not found"
             )
         user.is_active = False
-        self.db.commit()
 
     def activate_user(self, user_id: UUID) -> None:
         user = self.user_repo.get_by_id(user_id)
@@ -77,4 +75,3 @@ class UserService:
                 detail="User not found"
             )
         user.is_active = True
-        self.db.commit()

@@ -1,0 +1,157 @@
+"""
+Multi-node LangGraph for the iClinic AI Front Desk Agent.
+
+Architecture:
+    START → router_node → (conditional edge) → workflow_node → END
+
+Workflow nodes:
+    - book_appointment
+    - check_availability
+    - reschedule_appointment
+    - cancel_appointment
+    - faq
+    - escalate
+"""
+
+from control.models.intent import Intent
+from control.nodes.router_node import RouterNode
+from control.nodes.workflow_node import WorkflowNode
+from control.prompts.system_prompt import (
+    BOOK_APPOINTMENT_PROMPT,
+    CANCEL_PROMPT,
+    CHECK_AVAILABILITY_PROMPT,
+    ESCALATION_PROMPT,
+    FAQ_PROMPT,
+    RESCHEDULE_PROMPT,
+)
+from control.routing.llm_intent_router import LLMIntentRouter
+from control.routing.tool_registry import ToolRegistry
+from control.state.conversation_state import ConversationState
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import END, START, StateGraph
+
+
+def _route_by_intent(state) -> str:
+    """Conditional edge function — routes to the correct workflow node."""
+    intent = state.get("current_intent", "general")
+
+    routing_map = {
+        Intent.BOOK_APPOINTMENT.value: "book_appointment",
+        Intent.CHECK_AVAILABILITY.value: "check_availability",
+        Intent.RESCHEDULE_APPOINTMENT.value: "reschedule_appointment",
+        Intent.CANCEL_APPOINTMENT.value: "cancel_appointment",
+        Intent.ESCALATE.value: "escalate",
+        Intent.GENERAL.value: "faq",
+    }
+
+    destination = routing_map.get(intent, "faq")
+    print(f"\n[GRAPH] Routing to → {destination}")
+    return destination
+
+
+class FrontDeskGraph:
+    def __init__(
+        self,
+        llm,
+        intent_router=None,
+        tool_registry: ToolRegistry = None,
+        db=None,
+    ):
+        # Create LLM-based intent router (ignores the old embedding router if passed)
+        llm_router = LLMIntentRouter(llm)
+
+        # Get tool groups from registry (using Intent enum directly)
+        from control.models.intent_score import IntentScore
+
+        def _get_tools_for_intent(intent: Intent) -> list:
+            """Helper to get tools for a single intent."""
+            scores = [IntentScore(intent=intent, score=1.0)]
+            return tool_registry.get_tools(scores)
+
+        # Build workflow nodes
+        book_node = WorkflowNode(
+            name="book_appointment",
+            llm=llm,
+            system_prompt=BOOK_APPOINTMENT_PROMPT,
+            tools=_get_tools_for_intent(Intent.BOOK_APPOINTMENT),
+        )
+
+        availability_node = WorkflowNode(
+            name="check_availability",
+            llm=llm,
+            system_prompt=CHECK_AVAILABILITY_PROMPT,
+            tools=_get_tools_for_intent(Intent.CHECK_AVAILABILITY),
+        )
+
+        reschedule_node = WorkflowNode(
+            name="reschedule_appointment",
+            llm=llm,
+            system_prompt=RESCHEDULE_PROMPT,
+            tools=_get_tools_for_intent(Intent.RESCHEDULE_APPOINTMENT),
+        )
+
+        cancel_node = WorkflowNode(
+            name="cancel_appointment",
+            llm=llm,
+            system_prompt=CANCEL_PROMPT,
+            tools=_get_tools_for_intent(Intent.CANCEL_APPOINTMENT),
+        )
+
+        escalation_node = WorkflowNode(
+            name="escalate",
+            llm=llm,
+            system_prompt=ESCALATION_PROMPT,
+            tools=_get_tools_for_intent(Intent.ESCALATE),
+        )
+
+        faq_node = WorkflowNode(
+            name="faq",
+            llm=llm,
+            system_prompt=FAQ_PROMPT,
+            tools=[],  # FAQ doesn't need tools
+        )
+
+        router_node = RouterNode(llm_router)
+
+        # Build state graph
+        builder = StateGraph(ConversationState)
+
+        # Add nodes
+        builder.add_node("router", router_node)
+        builder.add_node("book_appointment", book_node)
+        builder.add_node("check_availability", availability_node)
+        builder.add_node("reschedule_appointment", reschedule_node)
+        builder.add_node("cancel_appointment", cancel_node)
+        builder.add_node("escalate", escalation_node)
+        builder.add_node("faq", faq_node)
+
+        # Edges
+        builder.add_edge(START, "router")
+
+        builder.add_conditional_edges(
+            "router",
+            _route_by_intent,
+            {
+                "book_appointment": "book_appointment",
+                "check_availability": "check_availability",
+                "reschedule_appointment": "reschedule_appointment",
+                "cancel_appointment": "cancel_appointment",
+                "escalate": "escalate",
+                "faq": "faq",
+            },
+        )
+
+        # All workflow nodes go to END
+        builder.add_edge("book_appointment", END)
+        builder.add_edge("check_availability", END)
+        builder.add_edge("reschedule_appointment", END)
+        builder.add_edge("cancel_appointment", END)
+        builder.add_edge("escalate", END)
+        builder.add_edge("faq", END)
+
+        # Compile with memory
+        memory = MemorySaver()
+        self.graph = builder.compile(checkpointer=memory)
+
+    def get_graph(self):
+        return self.graph

@@ -130,6 +130,14 @@ def complete_profile(
                 {"uid": user_id},
             )
             return _patient_response(existing_by_email)
+        elif str(existing_by_email.user_id) == user_id:
+            # Same user — profile already exists, just mark as completed
+            db.execute(
+                text("UPDATE users SET profile_completed = true WHERE id = :uid"),
+                {"uid": user_id},
+            )
+            db.commit()
+            return _patient_response(existing_by_email)
         else:
             # Email exists AND is already linked to a different user
             raise HTTPException(

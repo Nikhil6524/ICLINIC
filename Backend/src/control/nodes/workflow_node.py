@@ -7,6 +7,10 @@ WorkflowNode — Generic workflow node that can be configured with:
 Handles the tool-calling loop: LLM call → tool execution → final LLM call.
 Also detects and handles models that output tool calls as text instead of
 structured tool_calls (e.g. Groq's Llama 3.3).
+
+State contract:
+  Reads explicit fields from ConversationState (patient_id, selected_doctor_id, etc.)
+  Writes back explicit fields + entities dict for tool outputs.
 """
 
 import json
@@ -21,11 +25,8 @@ def _extract_text_tool_calls(content: str) -> list[dict] | None:
     """
     Detect tool calls embedded as text in the response.
     Patterns: <function=tool_name>{"arg": "val"}</function>
-              or {"name": "tool_name", "arguments": {...}}
     Returns parsed tool calls or None if not found.
     """
-    # Pattern: <function=tool_name>{...JSON...}</function>
-    # Use a greedy match for JSON content (handles nested braces)
     pattern = r"<function=(\w+)>\s*(\{.*?\})\s*</function>"
     matches = re.findall(pattern, content, re.DOTALL)
 
@@ -56,143 +57,149 @@ class WorkflowNode:
         self.tools = tools
         self.tool_map = {tool.name: tool for tool in tools}
 
-    def _build_entity_context(self, entities: dict) -> str:
-        """Build a structured summary of what's already known from previous turns."""
-        if not entities:
-            return ""
-
+    def _build_state_context(self, state: dict) -> str:
+        """Build a structured summary from explicit state fields."""
         lines = []
 
-        # Patient identity (pre-loaded from auth or collected during conversation)
-        has_patient = bool(entities.get("patient_id"))
-        has_name = bool(entities.get("first_name"))
-        has_phone = bool(entities.get("phone"))
-        has_email = bool(entities.get("email"))
+        # ─── Patient identity ───────────────────────────────────────────────────
+        patient_id = state.get("patient_id")
+        patient_name = state.get("patient_name")
+        patient_phone = state.get("patient_phone")
+        patient_email = state.get("patient_email")
+        patient_preloaded = state.get("patient_preloaded", False)
 
-        if has_name:
-            name_str = (
-                f"{entities.get('first_name', '')} {entities.get('last_name', '')}"
-            )
-            if has_patient:
+        if patient_name:
+            if patient_id:
                 lines.append(
-                    f"- PATIENT IDENTIFIED: {name_str} (patient_id: {entities['patient_id']})"
+                    f"- PATIENT IDENTIFIED: {patient_name} (patient_id: {patient_id})"
                 )
             else:
-                lines.append(f"- Patient name: {name_str}")
-        if has_phone:
-            lines.append(f"- Phone: {entities['phone']}")
-        if has_email:
-            lines.append(f"- Email: {entities['email']}")
+                lines.append(f"- Patient name: {patient_name}")
+        if patient_phone:
+            lines.append(f"- Phone: {patient_phone}")
+        if patient_email:
+            lines.append(f"- Email: {patient_email}")
 
-        if entities.get("specialty"):
-            lines.append(f"- Specialty: {entities['specialty']}")
+        # ─── Current selections ─────────────────────────────────────────────────
+        if state.get("selected_specialty"):
+            lines.append(f"- Specialty: {state['selected_specialty']}")
 
-        if entities.get("doctors"):
-            docs = entities["doctors"]
-            if isinstance(docs, list) and docs:
-                for d in docs[:4]:
-                    lines.append(
-                        f"- Doctor: {d.get('full_name', '?')} "
-                        f"(doctor_id: {d.get('doctor_id', '?')})"
-                    )
+        if state.get("selected_doctor_name"):
+            lines.append(
+                f"- Selected doctor: {state['selected_doctor_name']} "
+                f"(doctor_id: {state.get('selected_doctor_id', '?')})"
+            )
 
-        if entities.get("available_slots"):
-            slots = entities["available_slots"]
-            if isinstance(slots, list) and slots:
-                slot_strs = [
-                    f"{s.get('start', '?')} with {s.get('doctor_name', '?')} "
-                    f"(doctor_id: {s.get('doctor_id', '?')})"
-                    for s in slots[:6]
-                ]
-                lines.append(f"- Available slots: {'; '.join(slot_strs)}")
+        if state.get("selected_appointment_type"):
+            lines.append(
+                f"- Appointment type: {state['selected_appointment_type']} "
+                f"(ID: {state.get('selected_appointment_type_id', '?')})"
+            )
 
-        if entities.get("appointment_type_id"):
-            lines.append(f"- Appointment type ID: {entities['appointment_type_id']}")
-        if entities.get("appointment_type"):
-            lines.append(f"- Appointment type: {entities['appointment_type']}")
+        if state.get("selected_slot"):
+            lines.append(f"- Selected time slot: {state['selected_slot']}")
 
-        if entities.get("date"):
-            lines.append(f"- Date: {entities['date']}")
+        if state.get("selected_appointment_id"):
+            lines.append(
+                f"- Appointment being modified: {state['selected_appointment_id']}"
+            )
 
-        if entities.get("doctor_name"):
-            lines.append(f"- Selected doctor: {entities['doctor_name']}")
+        # ─── Pending action (what we last asked the patient) ────────────────────
+        pending = state.get("pending_action")
+        if pending:
+            pending_map = {
+                "confirm_booking": "WAITING FOR: Patient to confirm the booking (yes/no)",
+                "confirm_cancel": "WAITING FOR: Patient to confirm cancellation (yes/no)",
+                "confirm_reschedule": "WAITING FOR: Patient to confirm reschedule (yes/no)",
+                "confirm_appointment_type": "WAITING FOR: Patient to confirm the appointment type",
+                "choose_slot": "WAITING FOR: Patient to pick a time slot from the list",
+                "choose_doctor": "WAITING FOR: Patient to pick a doctor from the list",
+                "choose_appointment": "WAITING FOR: Patient to pick which appointment to modify",
+            }
+            lines.append(f"\n{pending_map.get(pending, f'WAITING FOR: {pending}')}")
 
-        if entities.get("doctor_id"):
-            lines.append(f"- Doctor ID: {entities['doctor_id']}")
-
-        if entities.get("appointment_id"):
-            lines.append(f"- Appointment booked (ID: {entities['appointment_id']})")
-        if entities.get("success") is True:
-            lines.append("- Status: BOOKING CONFIRMED")
-        if entities.get("email_sent"):
-            lines.append("- Confirmation email: SENT")
-
-        # Booking history (last 5 appointments for recommendations)
-        if entities.get("booking_history"):
-            history = entities["booking_history"]
-            if isinstance(history, list) and history:
-                # Separate active (BOOKED) from past bookings for clarity
-                active_from_history = [
-                    h for h in history if h.get("status") == "BOOKED"
-                ]
-                past_bookings = [h for h in history if h.get("status") != "BOOKED"]
-
-                if active_from_history:
-                    lines.append("")
-                    lines.append(
-                        "PATIENT'S ACTIVE UPCOMING APPOINTMENTS (for awareness only — use active_bookings_tool for IDs):"
-                    )
-                    for h in active_from_history:
-                        lines.append(
-                            f"  - {h.get('date', '?')} with {h.get('doctor_name', '?')} "
-                            f"({h.get('specialty', '?')})"
-                        )
-
-                if past_bookings:
-                    lines.append("")
-                    lines.append(
-                        "PATIENT'S PAST VISITS (use for doctor recommendations):"
-                    )
-                    for h in past_bookings:
-                        lines.append(
-                            f"  - {h.get('date', '?')} with {h.get('doctor_name', '?')} "
-                            f"({h.get('specialty', '?')}) — {h.get('status', '?')}"
-                        )
-
-        # Active bookings from tool call
-        if entities.get("active_bookings"):
-            active = entities["active_bookings"]
-            if isinstance(active, list) and active:
-                lines.append("")
+        # ─── Available options (for "the first one" disambiguation) ─────────────
+        available_doctors = state.get("available_doctors")
+        if available_doctors and isinstance(available_doctors, list):
+            lines.append("")
+            lines.append("DOCTORS SHOWN TO PATIENT (numbered):")
+            for i, d in enumerate(available_doctors[:6], 1):
                 lines.append(
-                    "PATIENT'S ACTIVE BOOKINGS (use appointment_id from here for cancel/reschedule):"
+                    f"  {i}. {d.get('full_name', d.get('doctor_name', '?'))} "
+                    f"(doctor_id: {d.get('doctor_id', '?')})"
                 )
-                for b in active:
+
+        available_slots = state.get("available_slots")
+        if available_slots and isinstance(available_slots, list):
+            lines.append("")
+            lines.append(
+                "SLOTS SHOWN TO PATIENT (this is a SAMPLE — more slots may exist. If patient asks for a different time, call availability_tool again):"
+            )
+            for i, s in enumerate(available_slots[:8], 1):
+                doctor_label = (
+                    f" with {s['doctor_name']}" if s.get("doctor_name") else ""
+                )
+                lines.append(
+                    f"  {i}. {s.get('start', '?')}{doctor_label} "
+                    f"(start_iso: {s.get('start_iso', '?')})"
+                )
+
+        active_bookings = state.get("active_bookings")
+        if active_bookings and isinstance(active_bookings, list):
+            lines.append("")
+            lines.append(
+                "PATIENT'S ACTIVE BOOKINGS (numbered — use appointment_id for cancel/reschedule):"
+            )
+            for i, b in enumerate(active_bookings, 1):
+                lines.append(
+                    f"  {i}. {b.get('start_datetime', '?')} with {b.get('doctor_name', '?')} "
+                    f"(appointment_id: {b.get('appointment_id', '?')})"
+                )
+
+        # ─── Booking history ────────────────────────────────────────────────────
+        booking_history = state.get("booking_history")
+        if booking_history and isinstance(booking_history, list):
+            active_from_history = [
+                h for h in booking_history if h.get("status") == "BOOKED"
+            ]
+            past_bookings = [h for h in booking_history if h.get("status") != "BOOKED"]
+
+            if active_from_history:
+                lines.append("")
+                lines.append("UPCOMING APPOINTMENTS (awareness only):")
+                for h in active_from_history:
                     lines.append(
-                        f"  - ID: {b.get('appointment_id', '?')} | "
-                        f"{b.get('start_datetime', '?')} with {b.get('doctor_name', '?')}"
+                        f"  - {h.get('date', '?')} with {h.get('doctor_name', '?')} "
+                        f"({h.get('specialty', '?')})"
+                    )
+
+            if past_bookings:
+                lines.append("")
+                lines.append("PAST VISITS (use for doctor recommendations):")
+                for h in past_bookings:
+                    lines.append(
+                        f"  - {h.get('date', '?')} with {h.get('doctor_name', '?')} "
+                        f"({h.get('specialty', '?')}) — {h.get('status', '?')}"
                     )
 
         if not lines:
             return ""
 
-        # Add explicit instruction about what's MISSING — only if patient is NOT already identified
-        if has_patient:
-            # Patient is fully identified from login — no need to ask for details
+        # ─── Instructions about missing info ────────────────────────────────────
+        if patient_id and patient_preloaded:
             lines.append("")
             lines.append(
                 "PATIENT IS PRE-IDENTIFIED (logged in user). "
-                "Do NOT ask for name, phone, or email. Use the patient_id above directly when booking."
+                "Do NOT ask for name, phone, or email. Use the patient_id above directly."
             )
-        else:
+        elif not patient_id:
             missing = []
-            if not has_name:
+            if not patient_name:
                 missing.append("patient's full name")
-            if not has_phone:
+            if not patient_phone:
                 missing.append("patient's phone number")
-            if not has_email:
+            if not patient_email:
                 missing.append("patient's email address")
-
             if missing:
                 lines.append("")
                 lines.append(
@@ -202,6 +209,83 @@ class WorkflowNode:
 
         return "\n".join(lines)
 
+    def _extract_state_updates(self, tool_name: str, result: dict) -> dict:
+        """
+        Map tool outputs to explicit state fields.
+        Returns a dict of state fields to update.
+        """
+        updates = {}
+
+        if tool_name == "patient_tool" and isinstance(result, dict):
+            if result.get("patient_id"):
+                updates["patient_id"] = result["patient_id"]
+                first = result.get("first_name", "")
+                last = result.get("last_name", "")
+                if first:
+                    updates["patient_name"] = f"{first} {last}".strip()
+                if result.get("phone"):
+                    updates["patient_phone"] = result["phone"]
+                if result.get("email"):
+                    updates["patient_email"] = result["email"]
+
+        elif tool_name == "doctor_tool" and isinstance(result, dict):
+            doctors = result.get("doctors")
+            if doctors and isinstance(doctors, list):
+                updates["available_doctors"] = doctors
+                if result.get("specialty"):
+                    updates["selected_specialty"] = result["specialty"]
+                updates["pending_action"] = "choose_doctor"
+
+        elif tool_name == "availability_tool" and isinstance(result, dict):
+            # Flatten all doctors' slots into a single list with doctor info
+            doctors_data = result.get("doctors", [])
+            flat_slots = []
+            for doc in doctors_data:
+                for slot in doc.get("available_slots", []):
+                    flat_slots.append(
+                        {
+                            **slot,
+                            "doctor_id": doc.get("doctor_id"),
+                            "doctor_name": doc.get("doctor_name"),
+                        }
+                    )
+            if flat_slots:
+                updates["available_slots"] = flat_slots
+                updates["pending_action"] = "choose_slot"
+            if result.get("appointment_type_id"):
+                updates["selected_appointment_type_id"] = result["appointment_type_id"]
+            if result.get("appointment_type"):
+                updates["selected_appointment_type"] = result["appointment_type"]
+            if result.get("specialty"):
+                updates["selected_specialty"] = result["specialty"]
+
+        elif tool_name == "appointment_tool" and isinstance(result, dict):
+            if result.get("success"):
+                updates["selected_appointment_id"] = result.get("appointment_id")
+                updates["pending_action"] = None
+                updates["available_slots"] = None
+
+        elif tool_name == "active_bookings_tool" and isinstance(result, dict):
+            bookings = result.get("active_bookings")
+            if bookings and isinstance(bookings, list):
+                updates["active_bookings"] = bookings
+                updates["pending_action"] = "choose_appointment"
+
+        elif tool_name == "reschedule_tool" and isinstance(result, dict):
+            if result.get("success"):
+                updates["pending_action"] = None
+                updates["selected_slot"] = None
+
+        elif tool_name == "cancellation_tool" and isinstance(result, dict):
+            if result.get("success"):
+                updates["pending_action"] = None
+                updates["selected_appointment_id"] = None
+
+        elif tool_name == "escalation_tool":
+            updates["pending_action"] = None
+
+        return updates
+
     async def __call__(self, state):
         messages = state["messages"]
         entities = state.get("entities", {})
@@ -210,8 +294,8 @@ class WorkflowNode:
         llm_tools = [ToolAdapter.adapt(tool) for tool in self.tools]
         llm = self.llm.bind_tools(llm_tools) if llm_tools else self.llm
 
-        # Build entity context string for injection
-        entity_context = self._build_entity_context(entities)
+        # Build context from explicit state fields
+        state_context = self._build_state_context(state)
 
         # Inject today's date so the LLM doesn't hallucinate dates
         from datetime import datetime as _dt
@@ -219,19 +303,22 @@ class WorkflowNode:
         today_str = _dt.now().strftime("%Y-%m-%d")
         today_readable = _dt.now().strftime("%A, %B %d, %Y")
 
-        # Build message list with system prompt + entity context
+        # Build message list with system prompt + state context
         prompt_with_context = self.system_prompt
         prompt_with_context += f"\n\nTODAY'S DATE: {today_readable} ({today_str})"
 
-        if entity_context:
+        if state_context:
             prompt_with_context += (
                 "\n\nCURRENT CONTEXT (what you already know — do NOT re-ask):\n"
-                f"{entity_context}\n\n"
+                f"{state_context}\n\n"
                 "CRITICAL RULES:\n"
-                "- Read the conversation history above CAREFULLY. If the patient already answered something, do NOT ask again.\n"
+                "- Read the conversation history CAREFULLY. If the patient already answered, do NOT ask again.\n"
                 "- If patient is PRE-IDENTIFIED, do NOT ask for name/phone/email. Use patient_id directly.\n"
-                "- If you recommended a doctor and the patient said 'yes', that doctor is chosen — ask for time, not the doctor again.\n"
-                "- If patient details are listed as STILL NEEDED, ask for them. Do NOT invent values.\n"
+                "- If WAITING FOR a patient response (pending_action shown above), interpret their reply in that context.\n"
+                "  'yes'/'sure'/'go ahead' = confirm the pending action.\n"
+                "  'the first one'/'1'/'first' = pick item #1 from the numbered list above.\n"
+                "  'the second one'/'2' = pick item #2, etc.\n"
+                "  'morning'/'afternoon'/'tomorrow' = filter from the available options.\n"
                 "- When calling tools, use UUIDs from context, NOT names.\n"
                 "- If the patient describes EMERGENCY symptoms (severe chest pain, can't breathe, stroke, heavy bleeding), "
                 "prioritize their safety — tell them to call 911/go to ER, then offer to escalate."
@@ -244,14 +331,11 @@ class WorkflowNode:
         try:
             response = await llm.ainvoke(llm_messages)
         except Exception as e:
-            # Groq sometimes fails with tool_use_failed but includes the attempted call
             error_str = str(e)
             if "failed_generation" in error_str or "tool_use_failed" in error_str:
-                # Extract the failed generation from error
                 import json as _json
 
                 try:
-                    # Try to parse the error JSON from the API response
                     raw_json = (
                         error_str.split(" - ", 1)[1] if " - " in error_str else "{}"
                     )
@@ -259,13 +343,11 @@ class WorkflowNode:
                     failed_gen = err_data.get("error", {}).get("failed_generation", "")
                     text_calls = _extract_text_tool_calls(failed_gen)
                     if text_calls:
-                        # Create a fake response so we can process the tool calls
                         from langchain_core.messages import AIMessage as _AIM
 
                         response = _AIM(content=failed_gen)
-                        response.tool_calls = []  # We'll use text_tool_calls path
+                        response.tool_calls = []
                     else:
-                        # No valid tool calls found — return a safe fallback
                         print(
                             f"[{self.name.upper()}] tool_use_failed but no parseable calls, returning fallback"
                         )
@@ -273,7 +355,6 @@ class WorkflowNode:
                             "response": "I'm sorry, I encountered an issue processing that. Could you try again?"
                         }
                 except (ValueError, KeyError, _json.JSONDecodeError):
-                    # JSON parsing failed — return a safe fallback instead of crashing
                     print(
                         f"[{self.name.upper()}] Error parsing failed_generation, returning fallback"
                     )
@@ -283,7 +364,7 @@ class WorkflowNode:
             else:
                 raise
 
-        # Check for text-based tool calls (model writing tool calls as text)
+        # Check for text-based tool calls
         text_tool_calls = None
         if not response.tool_calls and response.content:
             text_tool_calls = _extract_text_tool_calls(response.content)
@@ -296,22 +377,21 @@ class WorkflowNode:
 
         print(f"\n[{self.name.upper()}] LLM response (tool_calls: {bool(tool_calls)})")
 
-        # No tool calls — return direct response (but strip any accidental function text)
+        # No tool calls — return direct response
         if not tool_calls:
             content = response.content or ""
-            # Strip any leftover <function> tags from response
             content = re.sub(
                 r"<function=\w+>\s*\{[^}]*\}\s*</function>", "", content
             ).strip()
             return {
                 "messages": [AIMessage(content=content)],
                 "response": content,
-                "entities": entities,
             }
 
-        # Execute tool calls
+        # Execute tool calls and collect state updates
         llm_messages.append(response)
         updated_entities = dict(entities)
+        state_updates: dict = {}
 
         for tool_call in tool_calls:
             tool_name = tool_call["name"]
@@ -333,9 +413,14 @@ class WorkflowNode:
 
             print(f"[{self.name.upper()}] Tool result: {result}")
 
-            # Update entities with tool output
+            # Update legacy entities
             if isinstance(result, dict):
                 updated_entities.update(result)
+
+            # Extract explicit state updates
+            if isinstance(result, dict):
+                tool_state_updates = self._extract_state_updates(tool_name, result)
+                state_updates.update(tool_state_updates)
 
             tool_call_id = tool_call.get("id", f"call_{tool_name}")
             llm_messages.append(
@@ -345,7 +430,7 @@ class WorkflowNode:
                 )
             )
 
-        # Final LLM call with tool results (use tools-bound LLM)
+        # Final LLM call with tool results
         try:
             final_response = await llm.ainvoke(llm_messages)
         except Exception:
@@ -356,7 +441,7 @@ class WorkflowNode:
 
         print(f"[{self.name.upper()}] Final response generated")
 
-        # Handle chained tool calls — model wants to call more tools after first results
+        # Handle chained tool calls
         max_chains = 5
         chain_count = 0
         while (
@@ -380,6 +465,8 @@ class WorkflowNode:
                         r = {"error": str(ex)}
                     if isinstance(r, dict):
                         updated_entities.update(r)
+                        tool_updates = self._extract_state_updates(t_name, r)
+                        state_updates.update(tool_updates)
                     print(f"[{self.name.upper()}] Chained result: {r}")
                     llm_messages.append(
                         ToolMessage(
@@ -408,10 +495,7 @@ class WorkflowNode:
         ):
             response_content = final_response.content
         else:
-            # Fallback: if we executed tools but got no final text,
-            # generate a contextual response based on what happened
             if updated_entities.get("success") is True:
-                # Booking/reschedule succeeded
                 response_content = "All done! Your appointment has been confirmed. I've sent a confirmation email too."
             elif updated_entities.get("status") == "CANCELLED":
                 response_content = "Done, your appointment has been cancelled. I've sent a confirmation email."
@@ -431,8 +515,13 @@ class WorkflowNode:
             r"<function=\w+>\s*\{[^}]*\}\s*</function>", "", response_content
         ).strip()
 
-        return {
+        # Build final return with explicit state fields + legacy entities
+        output = {
             "messages": [AIMessage(content=response_content)],
             "response": response_content,
             "entities": updated_entities,
         }
+        # Merge explicit state field updates
+        output.update(state_updates)
+
+        return output

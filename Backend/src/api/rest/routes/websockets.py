@@ -191,6 +191,29 @@ async def websocket_chat(websocket: WebSocket, token: str = Query(default="")):
         else:
             logger.info("No patient record found for this connection")
 
+        # Initialize Redis session store
+        redis_store = None
+        try:
+            from src.data.clients.redis_client import SessionStore
+
+            redis_store = SessionStore(session_id)
+            # Save initial state to Redis
+            redis_store.save_state(
+                {
+                    "session_id": session_id,
+                    "patient_id": patient_entities.get("patient_id"),
+                    "patient_name": (
+                        f"{patient_entities['first_name']} {patient_entities['last_name']}"
+                        if patient_entities.get("first_name")
+                        else None
+                    ),
+                    "current_intent": None,
+                    "pending_action": None,
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Redis unavailable: {e} — session state in-memory only")
+
         try:
             # Send welcome acknowledgment (include patient name if known)
             welcome_content = "Connected to iClinic AI Assistant"
@@ -271,6 +294,27 @@ async def websocket_chat(websocket: WebSocket, token: str = Query(default="")):
                             "patient_preloaded": bool(
                                 patient_entities.get("patient_id")
                             ),
+                            # Explicit state fields
+                            "patient_id": patient_entities.get("patient_id"),
+                            "patient_name": (
+                                f"{patient_entities['first_name']} {patient_entities['last_name']}"
+                                if patient_entities.get("first_name")
+                                else None
+                            ),
+                            "patient_phone": patient_entities.get("phone"),
+                            "patient_email": patient_entities.get("email"),
+                            "selected_doctor_id": None,
+                            "selected_doctor_name": None,
+                            "selected_specialty": None,
+                            "selected_slot": None,
+                            "selected_appointment_type_id": None,
+                            "selected_appointment_type": None,
+                            "selected_appointment_id": None,
+                            "pending_action": None,
+                            "available_slots": None,
+                            "available_doctors": None,
+                            "active_bookings": None,
+                            "booking_history": patient_entities.get("booking_history"),
                         }
                     )
                     first_message = False
@@ -313,4 +357,12 @@ async def websocket_chat(websocket: WebSocket, token: str = Query(default="")):
     # `with get_db_session()` exited:
     #   - Clean exit → commit (patient, appointment, unavailability all persisted)
     #   - Exception → rollback (nothing saved)
+
+    # Clean up Redis session state (data is now in DB)
+    if redis_store:
+        try:
+            redis_store.delete()
+        except Exception:
+            pass
+
     logger.info(f"DB session closed for: session={session_id}")

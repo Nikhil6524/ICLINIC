@@ -1,0 +1,127 @@
+# ─── iClinic Full Stack ──────────────────────────────────────────────────────────
+# docker-compose up -d
+#
+# Services:
+#   - frontend     (port 3000) — React app served by Nginx
+#   - auth-backend (port 8001) — Authentication service
+#   - backend      (port 8000) — Main API + AI agent
+#   - redis        (port 6379) — Session state + slot locking
+#   - postgres     (port 5432) — Database
+
+version: "3.9"
+
+services:
+  # ─── PostgreSQL ─────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: iclinic_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Nikhil06
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ─── Redis ──────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ─── Auth Backend ───────────────────────────────────────────────────────────────
+  auth-backend:
+    build:
+      context: ./Auth-Backend
+      dockerfile: dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - APP_NAME=AuthBackend
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=iclinic_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=Nikhil06
+      - JWT_SECRET_KEY=super-secret-key
+      - JWT_ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=100
+      - REFRESH_TOKEN_EXPIRE_DAYS=7
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    command: http backend:8000
+    environment:
+      - NGROK_AUTHTOKEN=3FTifY2LBsO7b4TZxHAKE1dMwy6_23ZqyLC8ASc7PK88iZvGg
+    ports:
+      - "4040:4040"  # ngrok dashboard
+    depends_on:
+      - backend
+
+  # ─── Backend (AI Agent) ─────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Backend/dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_NAME=iClinic-Backend
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=iclinic_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=Nikhil06
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - REDIS_PASSWORD=
+      - JWT_SECRET_KEY=super-secret-key
+      - JWT_ALGORITHM=HS256
+      - AUTH_BACKEND_URL=http://auth-backend:8001
+    env_file:
+      - Backend/.env
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      auth-backend:
+        condition: service_started
+    restart: unless-stopped
+
+  # ─── Frontend ───────────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:8001
+        VITE_BACKEND_BASE_URL: http://localhost:8000
+        VITE_WS_BASE_URL: ws://localhost:8000
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+      - auth-backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

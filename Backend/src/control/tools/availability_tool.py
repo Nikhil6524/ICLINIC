@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from control.tools.base_tool import BaseTool
 from pydantic import BaseModel, Field
@@ -19,7 +19,17 @@ class AvailabilityToolInput(BaseModel):
             "Type of appointment if patient specified one. "
             "Options: General Consultation (15 min), Follow Up (10 min), "
             "Specialist Consultation (30 min), New Patient (45 min). "
-            "Leave empty to show all types."
+            "Leave empty to default to General Consultation."
+        ),
+    )
+
+    time_preference: str = Field(
+        default="",
+        description=(
+            "Patient's preferred time of day. "
+            "Options: 'morning' (before 12 PM), 'afternoon' (12 PM - 3 PM), "
+            "'evening' (3 PM onwards), or a specific time like '10:00 AM'. "
+            "Leave empty to return a balanced sample across the day."
         ),
     )
 
@@ -29,7 +39,8 @@ class AvailabilityTool(BaseTool):
 
     description = (
         "Check doctor availability by specialty and date. "
-        "Returns available time slots for doctors matching the specialty."
+        "Returns a list of pre-computed available time slots. "
+        "Only offer slots from this list — never invent times."
     )
 
     args_schema = AvailabilityToolInput
@@ -38,14 +49,227 @@ class AvailabilityTool(BaseTool):
         self.doctor_service = doctor_service
         self.appointment_service = appointment_service
 
+    def _compute_free_slots(
+        self, doctor, target_date: datetime, duration: timedelta
+    ) -> list[dict]:
+        """
+        Compute concrete available slots for a doctor on a given date.
+
+        Algorithm:
+            1. Build day boundaries from doctor's working hours.
+            2. Gather all blocked intervals (unavailabilities + existing appointments).
+            3. Walk from day_start to day_end in `duration`-sized steps.
+            4. A slot is free only if it does NOT overlap any blocked interval.
+        """
+        from src.data.repositories.appointment_repository import AppointmentRepository
+        from src.data.repositories.doctor_unavailability_repository import (
+            DoctorUnavailabilityRepository,
+        )
+
+        db = self.doctor_service.db
+
+        day_start = target_date.replace(
+            hour=doctor.working_start_time.hour,
+            minute=doctor.working_start_time.minute,
+            second=0,
+            microsecond=0,
+        )
+        day_end = target_date.replace(
+            hour=doctor.working_end_time.hour,
+            minute=doctor.working_end_time.minute,
+            second=0,
+            microsecond=0,
+        )
+
+        # Gather blocked intervals from unavailabilities
+        unavailability_repo = DoctorUnavailabilityRepository(db)
+        unavailabilities = unavailability_repo.get_by_doctor_and_date_range(
+            doctor.doctor_id, day_start, day_end
+        )
+
+        # Gather blocked intervals from existing appointments
+        appointment_repo = AppointmentRepository(db)
+        existing_appointments = appointment_repo.get_by_doctor_and_date_range(
+            doctor.doctor_id, day_start, day_end
+        )
+
+        # Merge all blocked intervals into a sorted list of (start, end) tuples
+        blocked: list[tuple[datetime, datetime]] = []
+        for u in unavailabilities:
+            blocked.append((u.start_datetime, u.end_datetime))
+        for a in existing_appointments:
+            blocked.append((a.start_datetime, a.end_datetime))
+        blocked.sort(key=lambda x: x[0])
+
+        # Walk through the day and collect free slots
+        free_slots: list[dict] = []
+        current = day_start
+
+        # Skip slots in the past (if checking today)
+        now = datetime.now()
+        if target_date.date() == now.date() and current < now:
+            # Round up to the next slot boundary
+            minutes_past = (now - current).total_seconds() / 60
+            steps_to_skip = int(minutes_past // duration.total_seconds() * 60) + 1
+            current = current + duration * steps_to_skip
+            # Align to slot boundaries
+            if current < now:
+                current = current + duration
+
+        while current + duration <= day_end:
+            slot_end = current + duration
+
+            # Check if this slot overlaps any blocked interval
+            is_blocked = False
+            for block_start, block_end in blocked:
+                # Overlap exists if slot_start < block_end AND slot_end > block_start
+                if current < block_end and slot_end > block_start:
+                    is_blocked = True
+                    break
+
+            if not is_blocked:
+                free_slots.append(
+                    {
+                        "start": current.strftime("%I:%M %p"),
+                        "end": slot_end.strftime("%I:%M %p"),
+                        "start_iso": current.strftime("%Y-%m-%dT%H:%M:%S"),
+                    }
+                )
+
+            current += duration
+
+        return free_slots
+
+    def _exclude_redis_locked(self, doctor_id: str, slots: list[dict]) -> list[dict]:
+        """
+        Remove slots that are locked in Redis (pending bookings not yet committed to DB).
+        This ensures other sessions don't see slots that are mid-booking.
+        """
+        try:
+            from src.data.clients.redis_client import SessionStore
+
+            locked_isos = SessionStore.get_locked_slots_for_doctor(doctor_id)
+            if not locked_isos:
+                return slots
+
+            locked_set = set(locked_isos)
+            return [s for s in slots if s.get("start_iso") not in locked_set]
+        except Exception:
+            # Redis unavailable — return slots as-is (graceful degradation)
+            return slots
+
+    def _filter_by_preference(self, slots: list[dict], preference: str) -> list[dict]:
+        """
+        Filter slots by patient's time preference.
+
+        - 'morning': before 12 PM
+        - 'afternoon': 12 PM to 3 PM
+        - 'evening': 3 PM onwards
+        - specific time (e.g. '10:00'): closest slots around that time
+        - empty: return a balanced sample (2 morning, 2 afternoon, 1 evening)
+        """
+        if not slots:
+            return slots
+
+        pref = preference.strip().lower()
+
+        if not pref:
+            # No preference — return a balanced sample across the day
+            morning = [s for s in slots if self._slot_hour(s) < 12]
+            afternoon = [s for s in slots if 12 <= self._slot_hour(s) < 15]
+            evening = [s for s in slots if self._slot_hour(s) >= 15]
+
+            sample = []
+            sample.extend(morning[:2])
+            sample.extend(afternoon[:2])
+            sample.extend(evening[:1])
+
+            # If we got less than 3, fill from whatever's available
+            if len(sample) < 3:
+                for s in slots:
+                    if s not in sample:
+                        sample.append(s)
+                    if len(sample) >= 5:
+                        break
+
+            return sample
+
+        if pref == "morning":
+            filtered = [s for s in slots if self._slot_hour(s) < 12]
+            return self._spread_sample(filtered, 5)
+
+        if pref == "afternoon":
+            filtered = [s for s in slots if 12 <= self._slot_hour(s) < 15]
+            return self._spread_sample(filtered, 5)
+
+        if pref in ("evening", "late afternoon"):
+            filtered = [s for s in slots if self._slot_hour(s) >= 15]
+            return self._spread_sample(filtered, 5)
+
+        # Try to parse as a specific time (e.g. "10:00 AM", "2 PM", "14:00")
+        target_hour = self._parse_time_preference(pref)
+        if target_hour is not None:
+            # Return slots within ±1.5 hours of the target, sorted by closeness
+            nearby = [s for s in slots if abs(self._slot_hour(s) - target_hour) <= 1.5]
+            # Sort by closeness to target time
+            nearby.sort(key=lambda s: abs(self._slot_hour(s) - target_hour))
+            return nearby[:5]
+
+        # Unrecognized preference — return balanced sample
+        return slots[:5]
+
+    def _spread_sample(self, slots: list[dict], count: int) -> list[dict]:
+        """
+        Return `count` slots evenly spread across the list.
+        This ensures the patient sees the full range (e.g. 8AM, 9AM, 10AM, 11AM)
+        instead of just the first 5 consecutive slots (8:00, 8:15, 8:30...).
+        """
+        if len(slots) <= count:
+            return slots
+
+        # Pick evenly spaced indices
+        step = len(slots) / count
+        indices = [int(i * step) for i in range(count)]
+        return [slots[i] for i in indices]
+
+    def _slot_hour(self, slot: dict) -> float:
+        """Extract hour as a float from a slot's start_iso."""
+        iso = slot.get("start_iso", "")
+        try:
+            dt = datetime.strptime(iso, "%Y-%m-%dT%H:%M:%S")
+            return dt.hour + dt.minute / 60.0
+        except ValueError:
+            return 12.0  # Fallback to noon
+
+    def _parse_time_preference(self, pref: str) -> float | None:
+        """Try to parse a time string into an hour float."""
+        import re
+
+        # Match patterns like "10:00 AM", "2 PM", "14:00", "10am"
+        # Pattern: optional digits:digits, optional AM/PM
+        match = re.match(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", pref, re.IGNORECASE)
+        if not match:
+            return None
+
+        hour = int(match.group(1))
+        minutes = int(match.group(2)) if match.group(2) else 0
+        ampm = match.group(3)
+
+        if ampm:
+            if ampm.lower() == "pm" and hour != 12:
+                hour += 12
+            elif ampm.lower() == "am" and hour == 12:
+                hour = 0
+
+        return hour + minutes / 60.0
+
     async def execute(
         self,
         specialty: str,
         date: str,
         appointment_type: str = "",
+        time_preference: str = "",
     ):
-        from datetime import timedelta as _timedelta
-
         # Handle relative date strings
         today = datetime.now()
         date_lower = date.strip().lower()
@@ -53,7 +277,7 @@ class AvailabilityTool(BaseTool):
         if date_lower in ("today", "now"):
             target_date = today
         elif date_lower == "tomorrow":
-            target_date = today + _timedelta(days=1)
+            target_date = today + timedelta(days=1)
         else:
             # Try multiple date formats
             target_date = None
@@ -95,15 +319,15 @@ class AvailabilityTool(BaseTool):
             apt_type = apt_type_repo.get_by_name(appointment_type)
 
         if not apt_type:
-            # Default to General Consultation
             apt_type = apt_type_repo.get_by_name("General Consultation")
 
         if not apt_type:
-            # Fall back to first active appointment type
             active_types = apt_type_repo.get_all_active()
             if not active_types:
                 return {"error": "No appointment types configured in the system."}
             apt_type = active_types[0]
+
+        duration = timedelta(minutes=apt_type.default_duration_minutes)
 
         # Get all available appointment types for the response
         all_types = apt_type_repo.get_all_active()
@@ -116,53 +340,36 @@ class AvailabilityTool(BaseTool):
             for t in all_types
         ]
 
-        # Gather doctor schedule info: working hours + unavailable slots
-        # The LLM will determine valid times from this data
-        doctors_schedule = []
+        # Compute pre-calculated available slots per doctor
+        doctors_availability = []
 
         for doctor in doctors:
-            # Get all unavailability blocks for the target date
-            day_start = target_date.replace(
-                hour=doctor.working_start_time.hour,
-                minute=doctor.working_start_time.minute,
-                second=0,
-                microsecond=0,
-            )
-            day_end = target_date.replace(
-                hour=doctor.working_end_time.hour,
-                minute=doctor.working_end_time.minute,
-                second=0,
-                microsecond=0,
-            )
+            free_slots = self._compute_free_slots(doctor, target_date, duration)
 
-            from src.data.repositories.doctor_unavailability_repository import (
-                DoctorUnavailabilityRepository,
-            )
+            # Also exclude slots locked in Redis (pending bookings not yet committed)
+            free_slots = self._exclude_redis_locked(str(doctor.doctor_id), free_slots)
 
-            unavailability_repo = DoctorUnavailabilityRepository(self.doctor_service.db)
-            unavailabilities = unavailability_repo.get_by_doctor_and_date_range(
-                doctor.doctor_id, day_start, day_end
-            )
+            # Filter by time preference
+            filtered_slots = self._filter_by_preference(free_slots, time_preference)
 
-            # Format blocked slots
-            blocked_slots = []
-            for u in unavailabilities:
-                blocked_slots.append(
-                    {
-                        "start": u.start_datetime.strftime("%I:%M %p"),
-                        "end": u.end_datetime.strftime("%I:%M %p"),
-                        "reason": u.reason or "Unavailable",
-                    }
-                )
+            # Limit to max 5 slots per doctor to avoid overwhelming the LLM
+            limited_slots = filtered_slots[:5]
 
-            doctors_schedule.append(
+            doctors_availability.append(
                 {
                     "doctor_id": str(doctor.doctor_id),
                     "doctor_name": doctor.full_name,
-                    "working_hours": f"{doctor.working_start_time.strftime('%I:%M %p')} - {doctor.working_end_time.strftime('%I:%M %p')}",
-                    "unavailable_slots": blocked_slots,
+                    "available_slots": limited_slots,
+                    "total_available": len(filtered_slots),
                 }
             )
+
+        # Build preference note for the response
+        pref_note = ""
+        if time_preference:
+            pref_note = f" Filtered for '{time_preference}' preference."
+        else:
+            pref_note = " Showing a balanced sample. Ask patient for morning/afternoon/evening preference to narrow down."
 
         return {
             "specialty": specialty,
@@ -172,12 +379,14 @@ class AvailabilityTool(BaseTool):
             "appointment_type_id": str(apt_type.appointment_type_id),
             "duration_minutes": apt_type.default_duration_minutes,
             "available_appointment_types": appointment_types_info,
-            "doctors_schedule": doctors_schedule,
+            "doctors": doctors_availability,
             "instructions": (
-                "Each doctor works during 'working_hours'. "
-                "The 'unavailable_slots' list shows times they are BLOCKED (already booked or busy). "
-                "The patient can book ANY time during working hours that does NOT overlap with an unavailable slot. "
-                "Account for the appointment duration when proposing times. "
-                "Suggest times that match the patient's preference (morning/afternoon/specific time)."
+                "These are the ONLY available slots. "
+                "Present these options to the patient. "
+                "NEVER suggest a time that is not in this list. "
+                "Use the start_iso value when booking with appointment_tool. "
+                "If patient wants more options or a different time, "
+                "call this tool again with a different time_preference."
+                f"{pref_note}"
             ),
         }

@@ -33,8 +33,9 @@ class AppointmentTool(BaseTool):
 
     args_schema = AppointmentToolInput
 
-    def __init__(self, appointment_service):
+    def __init__(self, appointment_service, email_tool=None):
         self.appointment_service = appointment_service
+        self.email_tool = email_tool
 
     def _resolve_doctor_id(self, doctor_id: str) -> UUID | None:
         """Try to resolve a doctor_id that might be a name instead of UUID."""
@@ -103,6 +104,36 @@ class AppointmentTool(BaseTool):
                 created_by_actor_id=patient_uuid,
             )
 
+            # Lock slot in Redis so other sessions see it as taken immediately
+            # (DB commit happens at session end)
+            try:
+                from src.data.clients.redis_client import SessionStore
+
+                start_iso = start_dt.strftime("%Y-%m-%dT%H:%M:%S")
+                SessionStore.is_slot_locked(
+                    str(doctor_uuid), start_iso
+                )  # Just to import
+                store = SessionStore(f"booking-{appointment.appointment_id}")
+                store.lock_slot(str(doctor_uuid), start_iso)
+            except Exception:
+                pass  # Redis failure shouldn't block booking
+
+            # Auto-send confirmation email to the patient
+            if self.email_tool:
+                try:
+                    self._send_confirmation_email(
+                        appointment=appointment,
+                        patient_uuid=patient_uuid,
+                        doctor_uuid=doctor_uuid,
+                        start_dt=start_dt,
+                    )
+                except Exception as e:
+                    import logging
+
+                    logging.getLogger(__name__).warning(
+                        f"[APPOINTMENT] Email send failed (booking still succeeded): {e}"
+                    )
+
             return {
                 "success": True,
                 "appointment_id": str(appointment.appointment_id),
@@ -119,3 +150,43 @@ class AppointmentTool(BaseTool):
                 "success": False,
                 "error": str(e.detail) if hasattr(e, "detail") else str(e),
             }
+
+    def _send_confirmation_email(
+        self, appointment, patient_uuid, doctor_uuid, start_dt
+    ):
+        """Fetch patient email and doctor name from DB, then send confirmation."""
+        import asyncio
+
+        from src.data.models.postgres.doctor import Doctor
+        from src.data.models.postgres.patient import Patient
+
+        db = self.appointment_service.db
+
+        # Fetch patient email
+        patient = db.query(Patient).filter(Patient.patient_id == patient_uuid).first()
+        if not patient or not patient.email:
+            return  # No email to send to
+
+        # Fetch doctor name
+        doctor = db.query(Doctor).filter(Doctor.doctor_id == doctor_uuid).first()
+        doctor_name = doctor.full_name if doctor else "Your Doctor"
+
+        patient_name = f"{patient.first_name} {patient.last_name}"
+        appointment_date = start_dt.strftime("%A, %B %d, %Y at %I:%M %p")
+
+        # Run the async email tool
+        coro = self.email_tool.execute(
+            to_email=patient.email,
+            patient_name=patient_name,
+            doctor_name=doctor_name,
+            appointment_date=appointment_date,
+            appointment_id=str(appointment.appointment_id),
+            email_type="confirmation",
+        )
+
+        # Handle both sync and async contexts
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(coro)
+        except RuntimeError:
+            asyncio.run(coro)

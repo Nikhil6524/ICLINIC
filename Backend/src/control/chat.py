@@ -33,41 +33,187 @@ class MockAvailabilityInput(BaseModel):
     appointment_type: str = Field(
         default="General Consultation", description="Appointment type"
     )
+    time_preference: str = Field(
+        default="", description="Time preference: morning, afternoon, evening"
+    )
 
 
 class MockAvailabilityTool(BaseTool):
     name = "availability_tool"
-    description = "Check doctor availability by specialty and date."
+    description = "Check doctor availability by specialty and date. Returns pre-computed available time slots filtered by time preference."
     args_schema = MockAvailabilityInput
 
     async def execute(
-        self, specialty: str, date: str, appointment_type: str = "General Consultation"
+        self,
+        specialty: str,
+        date: str,
+        appointment_type: str = "General Consultation",
+        time_preference: str = "",
     ):
+        pref = time_preference.strip().lower()
+
+        if pref == "morning":
+            slots_khan = [
+                {
+                    "start": "09:00 AM",
+                    "end": "09:30 AM",
+                    "start_iso": "2025-01-20T09:00:00",
+                },
+                {
+                    "start": "09:30 AM",
+                    "end": "10:00 AM",
+                    "start_iso": "2025-01-20T09:30:00",
+                },
+                {
+                    "start": "10:30 AM",
+                    "end": "11:00 AM",
+                    "start_iso": "2025-01-20T10:30:00",
+                },
+                {
+                    "start": "11:00 AM",
+                    "end": "11:30 AM",
+                    "start_iso": "2025-01-20T11:00:00",
+                },
+            ]
+            slots_patel = [
+                {
+                    "start": "09:00 AM",
+                    "end": "09:30 AM",
+                    "start_iso": "2025-01-20T09:00:00",
+                },
+                {
+                    "start": "10:00 AM",
+                    "end": "10:30 AM",
+                    "start_iso": "2025-01-20T10:00:00",
+                },
+            ]
+        elif pref == "afternoon":
+            slots_khan = [
+                {
+                    "start": "12:00 PM",
+                    "end": "12:30 PM",
+                    "start_iso": "2025-01-20T12:00:00",
+                },
+                {
+                    "start": "01:00 PM",
+                    "end": "01:30 PM",
+                    "start_iso": "2025-01-20T13:00:00",
+                },
+                {
+                    "start": "02:00 PM",
+                    "end": "02:30 PM",
+                    "start_iso": "2025-01-20T14:00:00",
+                },
+            ]
+            slots_patel = [
+                {
+                    "start": "01:00 PM",
+                    "end": "01:30 PM",
+                    "start_iso": "2025-01-20T13:00:00",
+                },
+                {
+                    "start": "02:30 PM",
+                    "end": "03:00 PM",
+                    "start_iso": "2025-01-20T14:30:00",
+                },
+            ]
+        elif pref in ("evening", "late afternoon"):
+            slots_khan = [
+                {
+                    "start": "03:00 PM",
+                    "end": "03:30 PM",
+                    "start_iso": "2025-01-20T15:00:00",
+                },
+                {
+                    "start": "04:00 PM",
+                    "end": "04:30 PM",
+                    "start_iso": "2025-01-20T16:00:00",
+                },
+            ]
+            slots_patel = [
+                {
+                    "start": "03:30 PM",
+                    "end": "04:00 PM",
+                    "start_iso": "2025-01-20T15:30:00",
+                },
+                {
+                    "start": "04:00 PM",
+                    "end": "04:30 PM",
+                    "start_iso": "2025-01-20T16:00:00",
+                },
+            ]
+        else:
+            slots_khan = [
+                {
+                    "start": "09:30 AM",
+                    "end": "10:00 AM",
+                    "start_iso": "2025-01-20T09:30:00",
+                },
+                {
+                    "start": "11:00 AM",
+                    "end": "11:30 AM",
+                    "start_iso": "2025-01-20T11:00:00",
+                },
+                {
+                    "start": "02:00 PM",
+                    "end": "02:30 PM",
+                    "start_iso": "2025-01-20T14:00:00",
+                },
+            ]
+            slots_patel = [
+                {
+                    "start": "10:00 AM",
+                    "end": "10:30 AM",
+                    "start_iso": "2025-01-20T10:00:00",
+                },
+                {
+                    "start": "03:00 PM",
+                    "end": "03:30 PM",
+                    "start_iso": "2025-01-20T15:00:00",
+                },
+            ]
+
         return {
             "specialty": specialty,
             "date": date,
+            "date_iso": "2025-01-20",
             "appointment_type": appointment_type,
+            "appointment_type_id": "apt-type-001",
             "duration_minutes": 30,
-            "available_slots": [
+            "available_appointment_types": [
                 {
-                    "doctor_id": "doc-001",
-                    "doctor_name": "Dr. Sarah Khan",
-                    "start": "09:30 AM",
-                    "end": "10:00 AM",
+                    "appointment_type_id": "apt-type-001",
+                    "name": "General Consultation",
+                    "duration_minutes": 15,
                 },
                 {
+                    "appointment_type_id": "apt-type-002",
+                    "name": "Specialist Consultation",
+                    "duration_minutes": 30,
+                },
+            ],
+            "doctors": [
+                {
                     "doctor_id": "doc-001",
                     "doctor_name": "Dr. Sarah Khan",
-                    "start": "11:00 AM",
-                    "end": "11:30 AM",
+                    "available_slots": slots_khan,
+                    "total_available": len(slots_khan) + 5,
                 },
                 {
                     "doctor_id": "doc-002",
                     "doctor_name": "Dr. James Patel",
-                    "start": "02:00 PM",
-                    "end": "02:30 PM",
+                    "available_slots": slots_patel,
+                    "total_available": len(slots_patel) + 3,
                 },
             ],
+            "instructions": (
+                "These are the ONLY available slots. "
+                "Present these options to the patient. "
+                "NEVER suggest a time that is not in this list. "
+                "Use the start_iso value when booking with appointment_tool. "
+                "If patient wants more options or a different time, "
+                "call this tool again with a different time_preference."
+            ),
         }
 
 
@@ -366,6 +512,23 @@ async def chat():
                     "current_intent": None,
                     "response": None,
                     "patient_preloaded": False,
+                    # Explicit state fields
+                    "patient_id": None,
+                    "patient_name": None,
+                    "patient_phone": None,
+                    "patient_email": None,
+                    "selected_doctor_id": None,
+                    "selected_doctor_name": None,
+                    "selected_specialty": None,
+                    "selected_slot": None,
+                    "selected_appointment_type_id": None,
+                    "selected_appointment_type": None,
+                    "selected_appointment_id": None,
+                    "pending_action": None,
+                    "available_slots": None,
+                    "available_doctors": None,
+                    "active_bookings": None,
+                    "booking_history": None,
                 }
             )
             first_message = False

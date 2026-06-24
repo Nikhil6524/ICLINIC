@@ -29,6 +29,17 @@ class CancellationTool(BaseTool):
                 appointment_id=apt_uuid,
             )
 
+            # Release the slot lock in Redis so it shows as free immediately
+            try:
+                from src.data.clients.redis_client import SessionStore
+
+                start_iso = appointment.start_datetime.strftime("%Y-%m-%dT%H:%M:%S")
+                # Release any pending lock on this slot
+                store = SessionStore(f"cancel-{apt_uuid}")
+                store.release_slot(str(appointment.doctor_id), start_iso)
+            except Exception:
+                pass
+
             return {
                 "success": True,
                 "appointment_id": str(appointment.appointment_id),

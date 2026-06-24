@@ -10,6 +10,7 @@ from control.tools.email_tool import EmailTool
 from control.tools.escalation_tool import EscalationTool
 from control.tools.patient_tool import PatientTool
 from control.tools.reschedule_tool import RescheduleTool
+from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 from src.core.services.appointment_service import AppointmentService
 from src.core.services.conversation_service import ConversationService
@@ -22,6 +23,9 @@ class ToolFactory:
 
     @staticmethod
     def create_registry(db: Session) -> ToolRegistry:
+        # Ensure .env is loaded for SMTP and other non-pydantic env vars
+        load_dotenv()
+
         # Initialize services
         doctor_service = DoctorService(db)
         appointment_service = AppointmentService(db)
@@ -38,8 +42,17 @@ class ToolFactory:
             doctor_service=doctor_service,
         )
 
+        # Email tool (reads SMTP config from env) — created before appointment_tool since it depends on it
+        email_tool = EmailTool(
+            smtp_host=os.getenv("SMTP_HOST", ""),
+            smtp_port=int(os.getenv("SMTP_PORT", "587")),
+            smtp_user=os.getenv("SMTP_USER", ""),
+            smtp_password=os.getenv("SMTP_PASSWORD", ""),
+        )
+
         appointment_tool = AppointmentTool(
             appointment_service=appointment_service,
+            email_tool=email_tool,
         )
 
         patient_tool = PatientTool(
@@ -61,14 +74,6 @@ class ToolFactory:
         active_bookings_tool = ActiveBookingsTool(
             appointment_service=appointment_service,
             doctor_service=doctor_service,
-        )
-
-        # Email tool (reads SMTP config from env)
-        email_tool = EmailTool(
-            smtp_host=os.getenv("SMTP_HOST", ""),
-            smtp_port=int(os.getenv("SMTP_PORT", "587")),
-            smtp_user=os.getenv("SMTP_USER", ""),
-            smtp_password=os.getenv("SMTP_PASSWORD", ""),
         )
 
         # Build registry

@@ -17,6 +17,7 @@ from src.api.rest.routes.health import router as health_router
 from src.api.rest.routes.notifications import router as notifications_router
 from src.api.rest.routes.patients import router as patients_router
 from src.api.rest.routes.staff import router as staff_router
+from src.api.rest.routes.voice import router as voice_router
 from src.api.rest.routes.websockets import router as websocket_router
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,9 @@ app.include_router(audit_logs_router)
 
 # WebSocket (chat with AI agent)
 app.include_router(websocket_router)
+
+# Voice (Twilio phone calls with AI agent)
+app.include_router(voice_router)
 
 
 # ─── Startup: Pre-warm the AI agent (LLM + config) ─────────────────────────────

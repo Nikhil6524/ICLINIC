@@ -13,6 +13,7 @@ dependencies = [
     "bcrypt==4.0.1",
     "psycopg2-binary>=2.9.9",
     "python-jose[cryptography]>=3.3.0",
+    "python-multipart>=0.0.9",
     "pydantic>=2.9.2",
     "pydantic-settings>=2.5.2",
     "sqlalchemy>=2.0.35",
@@ -21,6 +22,7 @@ dependencies = [
     "langchain-core>=0.3.0",
     "langchain-openai>=0.3.0",
     "langgraph>=0.4.0",
+    "twilio>=9.0.0",
 ]
 
 [dependency-groups]
@@ -54,5 +56,7 @@ ignore = [
 "Backend/src/seed.py" = ["E402"]
 "Backend/src/control/chat_live.py" = ["E402"]
 "Backend/src/control/chat.py" = ["E402"]
+"Backend/src/control/graphs/frontdesk_graph.py" = ["E402"]
+"Backend/src/api/rest/routes/voice.py" = ["E402"]
 
 

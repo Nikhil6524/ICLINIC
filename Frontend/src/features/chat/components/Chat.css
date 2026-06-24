@@ -88,6 +88,7 @@
 .chat-header-actions {
   display: flex;
   gap: 8px;
+  position: relative;
 }
 
 .chat-action-btn {
@@ -364,4 +365,198 @@
   .chat-bubble {
     max-width: 90%;
   }
+}
+
+
+/* ===== Call Button ===== */
+.call-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--white);
+  color: var(--success);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.call-btn:hover:not(:disabled) {
+  background: #ecfdf5;
+  border-color: var(--success);
+  transform: scale(1.05);
+}
+
+.call-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.call-btn--calling {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #d97706;
+}
+
+.call-btn--connected {
+  background: #ecfdf5;
+  border-color: var(--success);
+  color: var(--success);
+  animation: pulseGreen 2s infinite;
+}
+
+.call-btn--error {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+@keyframes pulseGreen {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.3); }
+  50% { box-shadow: 0 0 0 6px rgba(22, 163, 74, 0); }
+}
+
+.call-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.call-status-text {
+  font-size: 11px;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  white-space: nowrap;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--white);
+  box-shadow: var(--shadow);
+}
+
+.call-status-text--calling {
+  color: #d97706;
+}
+
+.call-status-text--connected {
+  color: var(--success);
+}
+
+.call-status-text--error {
+  color: var(--danger);
+}
+
+.call-status-text--ended {
+  color: var(--text-muted);
+}
+
+/* ===== Call Modal ===== */
+.call-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.call-modal {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  padding: 28px 24px;
+  width: 90%;
+  max-width: 380px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.call-modal h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.call-modal p {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 18px;
+}
+
+.call-modal-input {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  margin-bottom: 18px;
+}
+
+.call-modal-input:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.call-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.call-modal-cancel {
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.call-modal-cancel:hover {
+  background: var(--border);
+}
+
+.call-modal-confirm {
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--success);
+  border: none;
+  border-radius: var(--radius);
+  color: var(--white);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.call-modal-confirm:hover:not(:disabled) {
+  background: #15803d;
+}
+
+.call-modal-confirm:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.call-modal-confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.call-modal-confirm svg {
+  width: 14px;
+  height: 14px;
 }

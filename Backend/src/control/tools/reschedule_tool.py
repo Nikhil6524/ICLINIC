@@ -50,6 +50,16 @@ class RescheduleTool(BaseTool):
                 new_start_datetime=new_start_dt,
             )
 
+            # Lock new slot in Redis (old slot freed automatically via DB)
+            try:
+                from src.data.clients.redis_client import SessionStore
+
+                new_iso = new_start_dt.strftime("%Y-%m-%dT%H:%M:%S")
+                store = SessionStore(f"reschedule-{apt_uuid}")
+                store.lock_slot(str(appointment.doctor_id), new_iso)
+            except Exception:
+                pass
+
             return {
                 "success": True,
                 "appointment_id": str(appointment.appointment_id),

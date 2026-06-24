@@ -25,6 +25,7 @@ CRITICAL RULES:
 
 1. CONTINUITY: If [Previous intent: X] is shown, the user is likely STILL in that flow unless they explicitly switch topics.
    - "yes", "sure", "ok", "that one", "the first", "morning", "tomorrow", "Dr. Khan" → SAME intent as previous
+   - Time expressions during a booking/availability flow ("10:00", "after 10", "around 2", "what about 3 PM", "later") → SAME intent as previous
    - Only change intent if the user EXPLICITLY introduces a new topic (e.g., "actually, cancel my appointment instead")
 
 2. SYMPTOMS = BOOKING: Any health complaint (pain, ache, fever, cough, dizziness) → book_appointment
@@ -33,6 +34,7 @@ CRITICAL RULES:
    - If assistant asked "When would you like to come in?" and user says "tomorrow" → book_appointment
    - If assistant asked "Which one to cancel?" and user says "the first one" → cancel_appointment
    - If assistant asked "Confirm the reschedule?" and user says "yes" → reschedule_appointment
+   - If assistant showed time slots and user says "10:00" or "after 10" or "what about 2 PM" → SAME intent (they're refining their choice, NOT switching intent)
 
 4. INTENT SWITCHES (only when explicit):
    - "I want to cancel" / "cancel my appointment" → cancel_appointment (even if previously booking)

@@ -28,6 +28,14 @@ from control.routing.llm_intent_router import LLMIntentRouter
 from control.routing.tool_registry import ToolRegistry
 from control.state.conversation_state import ConversationState
 from langgraph.checkpoint.memory import MemorySaver
+
+# ─── Checkpointer ───────────────────────────────────────────────────────────────
+# LangGraph checkpointer for conversation message history persistence.
+# Uses MemorySaver (in-process). Redis is used separately for session state
+# and slot locking (see data/clients/redis_client.py).
+_shared_memory = MemorySaver()
+
+
 from langgraph.graph import END, START, StateGraph
 
 
@@ -149,9 +157,9 @@ class FrontDeskGraph:
         builder.add_edge("escalate", END)
         builder.add_edge("faq", END)
 
-        # Compile with memory
-        memory = MemorySaver()
-        self.graph = builder.compile(checkpointer=memory)
+        # Compile with MemorySaver checkpointer (message history persistence)
+        # Redis handles session state + slot locking separately
+        self.graph = builder.compile(checkpointer=_shared_memory)
 
     def get_graph(self):
         return self.graph

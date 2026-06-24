@@ -105,6 +105,23 @@ async def chat():
                         "current_intent": None,
                         "response": None,
                         "patient_preloaded": False,
+                        # Explicit state fields
+                        "patient_id": None,
+                        "patient_name": None,
+                        "patient_phone": None,
+                        "patient_email": None,
+                        "selected_doctor_id": None,
+                        "selected_doctor_name": None,
+                        "selected_specialty": None,
+                        "selected_slot": None,
+                        "selected_appointment_type_id": None,
+                        "selected_appointment_type": None,
+                        "selected_appointment_id": None,
+                        "pending_action": None,
+                        "available_slots": None,
+                        "available_doctors": None,
+                        "active_bookings": None,
+                        "booking_history": None,
                     }
                 )
                 first_message = False

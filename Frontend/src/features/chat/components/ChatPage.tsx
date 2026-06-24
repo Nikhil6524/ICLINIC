@@ -1,4 +1,5 @@
 import { ChatWindow } from "./ChatWindow";
+import { CallButton } from "./CallButton";
 import { useWebSocketChat } from "../../../hooks/useWebSocketChat";
 import "./Chat.css";
 
@@ -10,6 +11,7 @@ export function ChatPage() {
     isConnected,
     isTyping,
     reconnect,
+    sessionId,
   } = useWebSocketChat();
 
   return (
@@ -19,6 +21,7 @@ export function ChatPage() {
           isConnected={isConnected}
           onClear={clearMessages}
           onReconnect={reconnect}
+          sessionId={sessionId}
         />
         <ChatWindow
           messages={messages}
@@ -35,10 +38,12 @@ function ChatHeader({
   isConnected,
   onClear,
   onReconnect,
+  sessionId,
 }: {
   isConnected: boolean;
   onClear: () => void;
   onReconnect: () => void;
+  sessionId: string | null;
 }) {
   return (
     <div className="chat-header">
@@ -59,6 +64,7 @@ function ChatHeader({
         </div>
       </div>
       <div className="chat-header-actions">
+        <CallButton sessionId={sessionId} />
         {!isConnected && (
           <button className="chat-action-btn" onClick={onReconnect} title="Reconnect">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

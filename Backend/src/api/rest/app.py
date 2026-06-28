@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from src.api.middleware.error_handler import ErrorHandlerMiddleware
 from src.api.rest.routes.appointment_types import router as appointment_types_router
 from src.api.rest.routes.appointments import router as appointments_router
 from src.api.rest.routes.audit_logs import router as audit_logs_router
@@ -28,6 +29,9 @@ if _src_dir not in sys.path:
     sys.path.insert(0, _src_dir)
 
 app = FastAPI(title="iClinic Backend")
+
+# Global error handler — catches all unhandled exceptions, returns JSON instead of crashing
+app.add_middleware(ErrorHandlerMiddleware)
 
 # CORS — allow frontend origins with credentials (cookies)
 app.add_middleware(

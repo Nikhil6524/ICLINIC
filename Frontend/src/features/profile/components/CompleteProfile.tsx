@@ -53,10 +53,25 @@ export function CompleteProfile() {
     <div className="complete-profile-page">
       <div className="complete-profile-container">
         <div className="complete-profile-header">
+          <div style={{
+            width: "52px",
+            height: "52px",
+            background: "linear-gradient(135deg, #0d9488 0%, #0f766e 100%)",
+            borderRadius: "14px",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: "16px",
+            boxShadow: "0 4px 12px rgba(13, 148, 136, 0.25)",
+          }}>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+          </div>
           <h1>Complete Your Profile</h1>
           <p>
-            Welcome, <strong>{user?.email}</strong>! Please fill in your details
-            to get started.
+            Welcome, <strong>{user?.email}</strong>! Tell us a bit about yourself to get started.
           </p>
         </div>
 
@@ -75,7 +90,7 @@ export function CompleteProfile() {
                 type="text"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
-                placeholder="Enter your first name"
+                placeholder="Your first name"
                 required
                 autoFocus
               />
@@ -88,7 +103,7 @@ export function CompleteProfile() {
                 type="text"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
-                placeholder="Enter your last name"
+                placeholder="Your last name"
                 required
               />
             </div>
@@ -101,7 +116,7 @@ export function CompleteProfile() {
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="e.g. +91 9876543210"
+              placeholder="+91 98765 43210"
               required
             />
           </div>
@@ -124,7 +139,7 @@ export function CompleteProfile() {
                 value={gender}
                 onChange={(e) => setGender(e.target.value)}
               >
-                <option value="">Select gender</option>
+                <option value="">Select</option>
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
                 <option value="Other">Other</option>

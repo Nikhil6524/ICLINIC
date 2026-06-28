@@ -17,13 +17,14 @@ export function CallButton({ sessionId }: CallButtonProps) {
     <>
       <button
         className={`call-btn ${callStatus !== "idle" ? `call-btn--${callStatus}` : ""}`}
-        onClick={callStatus === "idle" ? handleCallClick : resetCall}
+        onClick={callStatus === "idle" || callStatus === "verifying" ? handleCallClick : resetCall}
         title={getTitle(callStatus)}
         disabled={callStatus === "calling"}
       >
         {callStatus === "idle" && <PhoneIcon />}
         {callStatus === "calling" && <SpinnerIcon />}
         {callStatus === "connected" && <PhoneConnectedIcon />}
+        {callStatus === "verifying" && <PhoneIcon />}
         {callStatus === "error" && <PhoneIcon />}
         {callStatus === "ended" && <PhoneIcon />}
       </button>
@@ -33,6 +34,7 @@ export function CallButton({ sessionId }: CallButtonProps) {
         <span className={`call-status-text call-status-text--${callStatus}`}>
           {callStatus === "calling" && "Calling..."}
           {callStatus === "connected" && "Call in progress"}
+          {callStatus === "verifying" && (error || "Phone verification needed — check your phone")}
           {callStatus === "error" && (error || "Call failed")}
           {callStatus === "ended" && "Call ended"}
         </span>
@@ -49,6 +51,8 @@ function getTitle(status: CallStatus): string {
       return "Ringing...";
     case "connected":
       return "Click to end status";
+    case "verifying":
+      return "Answer Twilio call to verify, then click again";
     case "error":
       return "Click to retry";
     case "ended":

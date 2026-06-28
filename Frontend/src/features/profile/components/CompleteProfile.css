@@ -1,19 +1,37 @@
+/* ===== Complete Profile Page ===== */
 .complete-profile-page {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   padding: 2rem;
+  background: linear-gradient(160deg, #f0fdfa 0%, #f8fafc 40%, #eef2ff 100%);
+  position: relative;
+}
+
+.complete-profile-page::before {
+  content: "";
+  position: absolute;
+  top: -20%;
+  right: -15%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(13, 148, 136, 0.06) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
 }
 
 .complete-profile-container {
-  background: #fff;
-  border-radius: 12px;
-  padding: 2.5rem;
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  padding: 3rem;
   width: 100%;
-  max-width: 520px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  max-width: 540px;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border-light);
+  position: relative;
+  z-index: 1;
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .complete-profile-header {
@@ -23,88 +41,121 @@
 
 .complete-profile-header h1 {
   font-size: 1.75rem;
-  color: #1a1a2e;
+  font-weight: 700;
+  color: var(--text);
   margin: 0 0 0.5rem;
+  letter-spacing: -0.5px;
 }
 
 .complete-profile-header p {
-  color: #666;
+  color: var(--text-muted);
   font-size: 0.95rem;
   margin: 0;
+  line-height: 1.6;
+}
+
+.complete-profile-header p strong {
+  color: var(--primary);
 }
 
 .profile-error {
-  background: #fee2e2;
-  color: #dc2626;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  padding: 12px 16px;
+  border-radius: var(--radius);
   margin-bottom: 1.5rem;
-  font-size: 0.9rem;
+  font-size: 14px;
+  border: 1px solid var(--danger-border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-error::before {
+  content: "⚠";
+  font-size: 16px;
 }
 
 .profile-form .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+  gap: 16px;
 }
 
 .profile-form .form-group {
-  margin-bottom: 1.25rem;
+  margin-bottom: 20px;
 }
 
 .profile-form label {
   display: block;
-  font-size: 0.85rem;
+  font-size: 13px;
   font-weight: 600;
-  color: #374151;
-  margin-bottom: 0.4rem;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  letter-spacing: 0.2px;
+  text-transform: uppercase;
 }
 
 .profile-form input,
 .profile-form select {
   width: 100%;
-  padding: 0.7rem 0.9rem;
-  border: 1.5px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 0.95rem;
-  transition: border-color 0.2s;
-  background: #fff;
+  padding: 12px 16px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 15px;
+  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+}
+
+.profile-form input:hover,
+.profile-form select:hover {
+  border-color: #cbd5e1;
 }
 
 .profile-form input:focus,
 .profile-form select:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
+  background: var(--white);
 }
 
 .profile-submit-btn {
   width: 100%;
-  padding: 0.85rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
+  padding: 14px;
+  background: var(--primary);
+  color: var(--text-inverse);
   border: none;
-  border-radius: 8px;
-  font-size: 1rem;
+  border-radius: var(--radius);
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.2s, transform 0.1s;
-  margin-top: 0.5rem;
+  transition: all var(--transition);
+  margin-top: 8px;
+  font-family: var(--font);
+  letter-spacing: 0.3px;
 }
 
 .profile-submit-btn:hover:not(:disabled) {
-  opacity: 0.9;
+  background: var(--primary-hover);
+  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.3);
   transform: translateY(-1px);
 }
 
+.profile-submit-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+}
+
 .profile-submit-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-@media (max-width: 480px) {
+@media (max-width: 500px) {
   .complete-profile-container {
-    padding: 1.5rem;
+    padding: 2rem 1.5rem;
   }
 
   .profile-form .form-row {

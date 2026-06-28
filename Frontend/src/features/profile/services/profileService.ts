@@ -8,6 +8,14 @@ export interface CompleteProfilePayload {
   gender?: string | null;
 }
 
+export interface UpdateProfilePayload {
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  dob?: string | null;
+  gender?: string | null;
+}
+
 export interface PatientResponse {
   patient_id: string;
   user_id: string | null;
@@ -23,4 +31,10 @@ export interface PatientResponse {
 export const profileService = {
   completeProfile: (data: CompleteProfilePayload) =>
     backendClient.post<PatientResponse>("/patients/complete-profile", data),
+
+  getMyProfile: () =>
+    backendClient.get<PatientResponse>("/patients/me"),
+
+  updateMyProfile: (data: UpdateProfilePayload) =>
+    backendClient.put<PatientResponse>("/patients/me", data),
 };

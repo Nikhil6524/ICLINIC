@@ -9,7 +9,7 @@ Workflow nodes:
     - check_availability
     - reschedule_appointment
     - cancel_appointment
-    - faq
+    - general
     - escalate
 """
 
@@ -21,7 +21,7 @@ from control.prompts.system_prompt import (
     CANCEL_PROMPT,
     CHECK_AVAILABILITY_PROMPT,
     ESCALATION_PROMPT,
-    FAQ_PROMPT,
+    GENERAL_PROMPT,
     RESCHEDULE_PROMPT,
 )
 from control.routing.llm_intent_router import LLMIntentRouter
@@ -49,10 +49,10 @@ def _route_by_intent(state) -> str:
         Intent.RESCHEDULE_APPOINTMENT.value: "reschedule_appointment",
         Intent.CANCEL_APPOINTMENT.value: "cancel_appointment",
         Intent.ESCALATE.value: "escalate",
-        Intent.GENERAL.value: "faq",
+        Intent.GENERAL.value: "general",
     }
 
-    destination = routing_map.get(intent, "faq")
+    destination = routing_map.get(intent, "general")
     print(f"\n[GRAPH] Routing to → {destination}")
     return destination
 
@@ -64,9 +64,10 @@ class FrontDeskGraph:
         intent_router=None,
         tool_registry: ToolRegistry = None,
         db=None,
+        router_llm=None,
     ):
-        # Create LLM-based intent router (ignores the old embedding router if passed)
-        llm_router = LLMIntentRouter(llm)
+        # Create LLM-based intent router (uses fast router LLM if provided)
+        llm_router = LLMIntentRouter(router_llm or llm)
 
         # Get tool groups from registry (using Intent enum directly)
         from control.models.intent_score import IntentScore
@@ -112,11 +113,11 @@ class FrontDeskGraph:
             tools=_get_tools_for_intent(Intent.ESCALATE),
         )
 
-        faq_node = WorkflowNode(
-            name="faq",
+        general_node = WorkflowNode(
+            name="general",
             llm=llm,
-            system_prompt=FAQ_PROMPT,
-            tools=[],  # FAQ doesn't need tools
+            system_prompt=GENERAL_PROMPT,
+            tools=[],  # General conversation doesn't need tools
         )
 
         router_node = RouterNode(llm_router)
@@ -131,7 +132,7 @@ class FrontDeskGraph:
         builder.add_node("reschedule_appointment", reschedule_node)
         builder.add_node("cancel_appointment", cancel_node)
         builder.add_node("escalate", escalation_node)
-        builder.add_node("faq", faq_node)
+        builder.add_node("general", general_node)
 
         # Edges
         builder.add_edge(START, "router")
@@ -145,7 +146,7 @@ class FrontDeskGraph:
                 "reschedule_appointment": "reschedule_appointment",
                 "cancel_appointment": "cancel_appointment",
                 "escalate": "escalate",
-                "faq": "faq",
+                "general": "general",
             },
         )
 
@@ -155,7 +156,7 @@ class FrontDeskGraph:
         builder.add_edge("reschedule_appointment", END)
         builder.add_edge("cancel_appointment", END)
         builder.add_edge("escalate", END)
-        builder.add_edge("faq", END)
+        builder.add_edge("general", END)
 
         # Compile with MemorySaver checkpointer (message history persistence)
         # Redis handles session state + slot locking separately

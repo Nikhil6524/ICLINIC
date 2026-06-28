@@ -329,17 +329,6 @@ class AvailabilityTool(BaseTool):
 
         duration = timedelta(minutes=apt_type.default_duration_minutes)
 
-        # Get all available appointment types for the response
-        all_types = apt_type_repo.get_all_active()
-        appointment_types_info = [
-            {
-                "appointment_type_id": str(t.appointment_type_id),
-                "name": t.name,
-                "duration_minutes": t.default_duration_minutes,
-            }
-            for t in all_types
-        ]
-
         # Compute pre-calculated available slots per doctor
         doctors_availability = []
 
@@ -364,13 +353,6 @@ class AvailabilityTool(BaseTool):
                 }
             )
 
-        # Build preference note for the response
-        pref_note = ""
-        if time_preference:
-            pref_note = f" Filtered for '{time_preference}' preference."
-        else:
-            pref_note = " Showing a balanced sample. Ask patient for morning/afternoon/evening preference to narrow down."
-
         return {
             "specialty": specialty,
             "date": target_date.strftime("%A, %B %d, %Y"),
@@ -378,15 +360,5 @@ class AvailabilityTool(BaseTool):
             "appointment_type": apt_type.name,
             "appointment_type_id": str(apt_type.appointment_type_id),
             "duration_minutes": apt_type.default_duration_minutes,
-            "available_appointment_types": appointment_types_info,
             "doctors": doctors_availability,
-            "instructions": (
-                "These are the ONLY available slots. "
-                "Present these options to the patient. "
-                "NEVER suggest a time that is not in this list. "
-                "Use the start_iso value when booking with appointment_tool. "
-                "If patient wants more options or a different time, "
-                "call this tool again with a different time_preference."
-                f"{pref_note}"
-            ),
         }

@@ -10,7 +10,11 @@ export function AuthLayout() {
   const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {
-    return <div className="loading-screen">Loading...</div>;
+    return (
+      <div className="loading-screen">
+        <span>Loading...</span>
+      </div>
+    );
   }
 
   if (isAuthenticated) {

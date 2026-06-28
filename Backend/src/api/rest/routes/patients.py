@@ -3,10 +3,75 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from src.api.rest.dependencies import DBSession, require_role
+from src.api.rest.dependencies import CurrentUser, DBSession, require_role
 from src.core.services.patient_service import PatientService
 
 router = APIRouter(prefix="/patients", tags=["Patients"])
+
+
+def _patient_response(p):
+    return {
+        "patient_id": str(p.patient_id),
+        "user_id": str(p.user_id) if p.user_id else None,
+        "first_name": p.first_name,
+        "last_name": p.last_name,
+        "phone": p.phone,
+        "email": p.email,
+        "dob": p.dob.isoformat() if p.dob else None,
+        "gender": p.gender,
+        "created_at": p.created_at.isoformat(),
+    }
+
+
+@router.get("/me")
+def get_my_patient_profile(
+    current_user: CurrentUser,
+    db: DBSession,
+):
+    """Get the current user's patient profile. Returns 404 if not found."""
+    user_id = current_user.get("sub")
+    service = PatientService(db)
+    patient = service.get_patient_by_user_id(user_id)
+    if not patient:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Patient profile not found",
+        )
+    return _patient_response(patient)
+
+
+class UpdateMyProfileRequest(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+    phone: str | None = None
+    dob: date | None = None
+    gender: str | None = None
+
+
+@router.put("/me")
+def update_my_patient_profile(
+    request: UpdateMyProfileRequest,
+    current_user: CurrentUser,
+    db: DBSession,
+):
+    """Update the current user's patient profile (non-key fields)."""
+    user_id = current_user.get("sub")
+    service = PatientService(db)
+    patient = service.get_patient_by_user_id(user_id)
+    if not patient:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Patient profile not found",
+        )
+    updated = service.update_patient(
+        patient_id=patient.patient_id,
+        first_name=request.first_name,
+        last_name=request.last_name,
+        phone=request.phone,
+        dob=request.dob,
+        gender=request.gender,
+    )
+    return _patient_response(updated)
 
 
 @router.get("/check-availability")
@@ -60,20 +125,6 @@ class UpdatePatientRequest(BaseModel):
     email: str | None = None
     dob: date | None = None
     gender: str | None = None
-
-
-def _patient_response(p):
-    return {
-        "patient_id": str(p.patient_id),
-        "user_id": str(p.user_id) if p.user_id else None,
-        "first_name": p.first_name,
-        "last_name": p.last_name,
-        "phone": p.phone,
-        "email": p.email,
-        "dob": p.dob.isoformat() if p.dob else None,
-        "gender": p.gender,
-        "created_at": p.created_at.isoformat(),
-    }
 
 
 @router.post("/complete-profile", status_code=201)

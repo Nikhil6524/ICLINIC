@@ -14,8 +14,25 @@ export function LoginForm() {
 
   return (
     <form className="auth-form" onSubmit={onSubmit} noValidate>
-      <h1 className="auth-title">Sign In</h1>
-      <p className="auth-subtitle">Welcome back to iClinic</p>
+      <div style={{ textAlign: "center", marginBottom: "8px" }}>
+        <div style={{
+          width: "48px",
+          height: "48px",
+          background: "linear-gradient(135deg, #0d9488 0%, #0f766e 100%)",
+          borderRadius: "12px",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: "16px",
+          boxShadow: "0 4px 12px rgba(13, 148, 136, 0.25)",
+        }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+          </svg>
+        </div>
+      </div>
+      <h1 className="auth-title" style={{ textAlign: "center" }}>Welcome Back</h1>
+      <p className="auth-subtitle" style={{ textAlign: "center" }}>Sign in to your iClinic account</p>
 
       {error && (
         <div className="auth-error" role="alert">
@@ -24,7 +41,7 @@ export function LoginForm() {
       )}
 
       <div className="form-group">
-        <label htmlFor="email">Email</label>
+        <label htmlFor="email">Email Address</label>
         <input
           id="email"
           type="email"
@@ -55,7 +72,7 @@ export function LoginForm() {
       </button>
 
       <p className="auth-footer">
-        Don't have an account? <Link to="/register">Sign up</Link>
+        Don't have an account? <Link to="/register">Create one</Link>
       </p>
     </form>
   );

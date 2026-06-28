@@ -36,10 +36,12 @@ def build_graph_with_db(db):
     """Build the multi-node graph with REAL DB-backed tools."""
     registry = ToolFactory.create_registry(db)
     llm = LLMFactory.get_llm()
+    router_llm = LLMFactory.get_router_llm()
 
     graph = FrontDeskGraph(
         llm=llm,
         tool_registry=registry,
+        router_llm=router_llm,
     ).get_graph()
 
     return graph

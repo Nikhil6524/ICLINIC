@@ -311,21 +311,17 @@ class WorkflowNode:
             prompt_with_context += (
                 "\n\nCURRENT CONTEXT (what you already know — do NOT re-ask):\n"
                 f"{state_context}\n\n"
-                "CRITICAL RULES:\n"
-                "- Read the conversation history CAREFULLY. If the patient already answered, do NOT ask again.\n"
-                "- If patient is PRE-IDENTIFIED, do NOT ask for name/phone/email. Use patient_id directly.\n"
-                "- If WAITING FOR a patient response (pending_action shown above), interpret their reply in that context.\n"
-                "  'yes'/'sure'/'go ahead' = confirm the pending action.\n"
-                "  'the first one'/'1'/'first' = pick item #1 from the numbered list above.\n"
-                "  'the second one'/'2' = pick item #2, etc.\n"
-                "  'morning'/'afternoon'/'tomorrow' = filter from the available options.\n"
-                "- When calling tools, use UUIDs from context, NOT names.\n"
-                "- If the patient describes EMERGENCY symptoms (severe chest pain, can't breathe, stroke, heavy bleeding), "
-                "prioritize their safety — tell them to call 911/go to ER, then offer to escalate."
+                "RULES:\n"
+                "- Read conversation history. If patient already answered, don't re-ask.\n"
+                "- If patient is PRE-IDENTIFIED, don't ask for name/phone/email.\n"
+                "- If WAITING FOR a response, interpret their reply in that context.\n"
+                "- Use UUIDs from context when calling tools.\n"
+                "- Emergency symptoms → tell them to call 911, then escalate."
             )
 
         llm_messages = [SystemMessage(content=prompt_with_context)]
-        llm_messages.extend(messages)
+        # Only pass last 6 messages to LLM to reduce token count
+        llm_messages.extend(messages[-6:])
 
         # First LLM call
         try:
@@ -442,7 +438,7 @@ class WorkflowNode:
         print(f"[{self.name.upper()}] Final response generated")
 
         # Handle chained tool calls
-        max_chains = 5
+        max_chains = 2
         chain_count = 0
         while (
             final_response
@@ -495,17 +491,23 @@ class WorkflowNode:
         ):
             response_content = final_response.content
         else:
-            if updated_entities.get("success") is True:
-                response_content = "All done! Your appointment has been confirmed. I've sent a confirmation email too."
-            elif updated_entities.get("status") == "CANCELLED":
-                response_content = "Done, your appointment has been cancelled. I've sent a confirmation email."
+            if updated_entities.get("status") == "CANCELLED":
+                response_content = "Done, your appointment has been cancelled. I've sent you a confirmation message."
             elif updated_entities.get("escalated"):
                 response_content = (
                     "I've flagged this for our team. Someone will be with you shortly."
                 )
-            elif updated_entities.get("email_sent"):
+            elif updated_entities.get("success") is True:
+                # Determine what kind of success based on workflow name
+                if self.name == "cancel_appointment":
+                    response_content = "Done, your appointment has been cancelled."
+                elif self.name == "reschedule_appointment":
+                    response_content = "All set! Your appointment has been rescheduled. I've sent you a confirmation."
+                else:
+                    response_content = "All done! Your appointment has been confirmed. I've sent you a confirmation message."
+            elif updated_entities.get("sms_sent"):
                 response_content = (
-                    "All set! I've sent you a confirmation email with the details."
+                    "All set! I've sent you a confirmation with the details."
                 )
             else:
                 response_content = "Let me know how you'd like to proceed."

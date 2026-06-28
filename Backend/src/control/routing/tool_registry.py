@@ -11,7 +11,6 @@ class ToolRegistry:
         reschedule_tool,
         cancellation_tool,
         escalation_tool,
-        email_tool=None,
         active_bookings_tool=None,
     ):
         self.intent_tool_map = {
@@ -20,7 +19,6 @@ class ToolRegistry:
                 availability_tool,
                 patient_tool,
                 appointment_tool,
-                email_tool,
             ],
             Intent.CHECK_AVAILABILITY: [
                 doctor_tool,
@@ -30,12 +28,10 @@ class ToolRegistry:
                 active_bookings_tool,
                 availability_tool,
                 reschedule_tool,
-                email_tool,
             ],
             Intent.CANCEL_APPOINTMENT: [
                 active_bookings_tool,
                 cancellation_tool,
-                email_tool,
             ],
             Intent.ESCALATE: [
                 escalation_tool,

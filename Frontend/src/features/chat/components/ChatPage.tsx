@@ -1,6 +1,7 @@
 import { ChatWindow } from "./ChatWindow";
 import { CallButton } from "./CallButton";
 import { useWebSocketChat } from "../../../hooks/useWebSocketChat";
+import { Link } from "react-router-dom";
 import "./Chat.css";
 
 export function ChatPage() {
@@ -48,15 +49,20 @@ function ChatHeader({
   return (
     <div className="chat-header">
       <div className="chat-header-left">
+        <Link to="/dashboard" className="chat-action-btn" title="Back to dashboard" style={{ marginRight: "4px" }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </Link>
         <div className="chat-avatar">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M12 2a3 3 0 0 0-3 3v1a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
             <path d="M19 10H5a2 2 0 0 0-2 2v1a8 8 0 0 0 16 0v-1a2 2 0 0 0-2-2Z" />
             <path d="M12 18v4" />
           </svg>
         </div>
         <div className="chat-header-info">
-          <h2>iClinic AI Assistant</h2>
+          <h2>iClinic Assistant</h2>
           <span className={`chat-status ${isConnected ? "online" : "offline"}`}>
             <span className="status-dot"></span>
             {isConnected ? "Online" : "Reconnecting..."}

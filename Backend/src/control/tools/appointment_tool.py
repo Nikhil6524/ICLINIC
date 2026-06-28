@@ -33,9 +33,9 @@ class AppointmentTool(BaseTool):
 
     args_schema = AppointmentToolInput
 
-    def __init__(self, appointment_service, email_tool=None):
+    def __init__(self, appointment_service, sms_tool=None):
         self.appointment_service = appointment_service
-        self.email_tool = email_tool
+        self.sms_tool = sms_tool
 
     def _resolve_doctor_id(self, doctor_id: str) -> UUID | None:
         """Try to resolve a doctor_id that might be a name instead of UUID."""
@@ -118,10 +118,10 @@ class AppointmentTool(BaseTool):
             except Exception:
                 pass  # Redis failure shouldn't block booking
 
-            # Auto-send confirmation email to the patient
-            if self.email_tool:
+            # Auto-send confirmation SMS to the patient
+            if self.sms_tool:
                 try:
-                    self._send_confirmation_email(
+                    self._send_confirmation_sms(
                         appointment=appointment,
                         patient_uuid=patient_uuid,
                         doctor_uuid=doctor_uuid,
@@ -131,8 +131,11 @@ class AppointmentTool(BaseTool):
                     import logging
 
                     logging.getLogger(__name__).warning(
-                        f"[APPOINTMENT] Email send failed (booking still succeeded): {e}"
+                        f"[APPOINTMENT] SMS send failed (booking still succeeded): {e}"
                     )
+
+            # Commit the booking to the database
+            self.appointment_service.db.commit()
 
             return {
                 "success": True,
@@ -146,15 +149,14 @@ class AppointmentTool(BaseTool):
             }
 
         except Exception as e:
+            self.appointment_service.db.rollback()
             return {
                 "success": False,
                 "error": str(e.detail) if hasattr(e, "detail") else str(e),
             }
 
-    def _send_confirmation_email(
-        self, appointment, patient_uuid, doctor_uuid, start_dt
-    ):
-        """Fetch patient email and doctor name from DB, then send confirmation."""
+    def _send_confirmation_sms(self, appointment, patient_uuid, doctor_uuid, start_dt):
+        """Fetch patient phone and doctor name from DB, then send confirmation SMS."""
         import asyncio
 
         from src.data.models.postgres.doctor import Doctor
@@ -162,10 +164,10 @@ class AppointmentTool(BaseTool):
 
         db = self.appointment_service.db
 
-        # Fetch patient email
+        # Fetch patient phone
         patient = db.query(Patient).filter(Patient.patient_id == patient_uuid).first()
-        if not patient or not patient.email:
-            return  # No email to send to
+        if not patient or not patient.phone:
+            return  # No phone to send to
 
         # Fetch doctor name
         doctor = db.query(Doctor).filter(Doctor.doctor_id == doctor_uuid).first()
@@ -174,14 +176,19 @@ class AppointmentTool(BaseTool):
         patient_name = f"{patient.first_name} {patient.last_name}"
         appointment_date = start_dt.strftime("%A, %B %d, %Y at %I:%M %p")
 
-        # Run the async email tool
-        coro = self.email_tool.execute(
-            to_email=patient.email,
+        # Normalize phone to E.164
+        phone = patient.phone.strip()
+        if not phone.startswith("+"):
+            phone = f"+91{phone}" if len(phone) == 10 else f"+{phone}"
+
+        # Run the async sms tool
+        coro = self.sms_tool.execute(
+            to_phone=phone,
             patient_name=patient_name,
             doctor_name=doctor_name,
             appointment_date=appointment_date,
             appointment_id=str(appointment.appointment_id),
-            email_type="confirmation",
+            sms_type="confirmation",
         )
 
         # Handle both sync and async contexts

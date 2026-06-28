@@ -372,37 +372,6 @@ class MockEscalationTool(BaseTool):
         }
 
 
-class MockEmailInput(BaseModel):
-    to_email: str = Field(description="Recipient email")
-    patient_name: str = Field(description="Patient name")
-    doctor_name: str = Field(description="Doctor name")
-    appointment_date: str = Field(description="Appointment date and time")
-    appointment_id: str = Field(default="", description="Appointment ID")
-
-
-class MockEmailTool(BaseTool):
-    name = "email_tool"
-    description = "Send a booking confirmation email to the patient."
-    args_schema = MockEmailInput
-
-    async def execute(
-        self,
-        to_email: str,
-        patient_name: str,
-        doctor_name: str,
-        appointment_date: str,
-        appointment_id: str = "",
-    ):
-        print(
-            f"\n[EMAIL SENT] To: {to_email} | Patient: {patient_name} | Doctor: {doctor_name} | Time: {appointment_date}"
-        )
-        return {
-            "email_sent": True,
-            "to": to_email,
-            "message": f"Confirmation email sent to {to_email}",
-        }
-
-
 class MockActiveBookingsInput(BaseModel):
     patient_id: str = Field(description="Patient UUID")
 
@@ -445,7 +414,6 @@ def build_graph():
         reschedule_tool=MockRescheduleTool(),
         cancellation_tool=MockCancellationTool(),
         escalation_tool=MockEscalationTool(),
-        email_tool=MockEmailTool(),
         active_bookings_tool=MockActiveBookingsTool(),
     )
 

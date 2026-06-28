@@ -51,15 +51,18 @@ def _get_llm():
 
 def _build_graph_for_session(db):
     """Build a graph with a per-connection DB session for proper transactions."""
+    from control.factories.llm_factory import LLMFactory
     from control.factories.tool_factory import ToolFactory
     from control.graphs.frontdesk_graph import FrontDeskGraph
 
     registry = ToolFactory.create_registry(db)
     llm = _get_llm()
+    router_llm = LLMFactory.get_router_llm()
 
     graph = FrontDeskGraph(
         llm=llm,
         tool_registry=registry,
+        router_llm=router_llm,
     ).get_graph()
 
     return graph

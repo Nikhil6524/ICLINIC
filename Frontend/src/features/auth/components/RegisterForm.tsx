@@ -30,8 +30,25 @@ export function RegisterForm() {
 
   return (
     <form className="auth-form" onSubmit={onSubmit} noValidate>
-      <h1 className="auth-title">Create Account</h1>
-      <p className="auth-subtitle">Join iClinic today</p>
+      <div style={{ textAlign: "center", marginBottom: "8px" }}>
+        <div style={{
+          width: "48px",
+          height: "48px",
+          background: "linear-gradient(135deg, #0d9488 0%, #0f766e 100%)",
+          borderRadius: "12px",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: "16px",
+          boxShadow: "0 4px 12px rgba(13, 148, 136, 0.25)",
+        }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+          </svg>
+        </div>
+      </div>
+      <h1 className="auth-title" style={{ textAlign: "center" }}>Create Account</h1>
+      <p className="auth-subtitle" style={{ textAlign: "center" }}>Join iClinic for easy healthcare access</p>
 
       {displayError && (
         <div className="auth-error" role="alert">
@@ -40,7 +57,7 @@ export function RegisterForm() {
       )}
 
       <div className="form-group">
-        <label htmlFor="email">Email</label>
+        <label htmlFor="email">Email Address</label>
         <input
           id="email"
           type="email"
@@ -53,30 +70,32 @@ export function RegisterForm() {
         />
       </div>
 
-      <div className="form-group">
-        <label htmlFor="password">Password</label>
-        <input
-          id="password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="••••••••"
-          required
-          autoComplete="new-password"
-        />
-      </div>
+      <div className="form-row">
+        <div className="form-group">
+          <label htmlFor="password">Password</label>
+          <input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Min 8 characters"
+            required
+            autoComplete="new-password"
+          />
+        </div>
 
-      <div className="form-group">
-        <label htmlFor="confirmPassword">Confirm Password</label>
-        <input
-          id="confirmPassword"
-          type="password"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          placeholder="••••••••"
-          required
-          autoComplete="new-password"
-        />
+        <div className="form-group">
+          <label htmlFor="confirmPassword">Confirm</label>
+          <input
+            id="confirmPassword"
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="Re-enter password"
+            required
+            autoComplete="new-password"
+          />
+        </div>
       </div>
 
       <div className="form-group">

@@ -1,1 +1,1 @@
-# Voice module — Twilio + ElevenLabs integration for AI phone calls
+# Voice module — Twilio integration for AI phone calls

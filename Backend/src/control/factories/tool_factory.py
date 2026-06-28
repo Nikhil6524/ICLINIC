@@ -1,15 +1,13 @@
-import os
-
 from control.routing.tool_registry import ToolRegistry
 from control.tools.active_bookings_tool import ActiveBookingsTool
 from control.tools.appointment_tool import AppointmentTool
 from control.tools.availability_tool import AvailabilityTool
 from control.tools.cancellation_tool import CancellationTool
 from control.tools.doctor_tool import DoctorTool
-from control.tools.email_tool import EmailTool
 from control.tools.escalation_tool import EscalationTool
 from control.tools.patient_tool import PatientTool
 from control.tools.reschedule_tool import RescheduleTool
+from control.tools.sms_tool import SmsTool
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 from src.core.services.appointment_service import AppointmentService
@@ -23,7 +21,7 @@ class ToolFactory:
 
     @staticmethod
     def create_registry(db: Session) -> ToolRegistry:
-        # Ensure .env is loaded for SMTP and other non-pydantic env vars
+        # Ensure .env is loaded for env vars
         load_dotenv()
 
         # Initialize services
@@ -42,17 +40,12 @@ class ToolFactory:
             doctor_service=doctor_service,
         )
 
-        # Email tool (reads SMTP config from env) — created before appointment_tool since it depends on it
-        email_tool = EmailTool(
-            smtp_host=os.getenv("SMTP_HOST", ""),
-            smtp_port=int(os.getenv("SMTP_PORT", "587")),
-            smtp_user=os.getenv("SMTP_USER", ""),
-            smtp_password=os.getenv("SMTP_PASSWORD", ""),
-        )
+        # SMS tool (uses Twilio — reads from env)
+        sms_tool = SmsTool()
 
         appointment_tool = AppointmentTool(
             appointment_service=appointment_service,
-            email_tool=email_tool,
+            sms_tool=sms_tool,
         )
 
         patient_tool = PatientTool(
@@ -61,10 +54,12 @@ class ToolFactory:
 
         reschedule_tool = RescheduleTool(
             appointment_service=appointment_service,
+            sms_tool=sms_tool,
         )
 
         cancellation_tool = CancellationTool(
             appointment_service=appointment_service,
+            sms_tool=sms_tool,
         )
 
         escalation_tool = EscalationTool(
@@ -85,7 +80,6 @@ class ToolFactory:
             reschedule_tool=reschedule_tool,
             cancellation_tool=cancellation_tool,
             escalation_tool=escalation_tool,
-            email_tool=email_tool,
             active_bookings_tool=active_bookings_tool,
         )
 

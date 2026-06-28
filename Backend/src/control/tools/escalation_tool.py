@@ -1,3 +1,5 @@
+import os
+
 from control.tools.base_tool import BaseTool
 from pydantic import BaseModel, Field
 
@@ -10,49 +12,45 @@ class EscalationToolInput(BaseModel):
         description="UUID of the current conversation (if available)",
     )
 
-    patient_phone: str = Field(
-        default="",
-        description="Patient phone number for callback (if available)",
-    )
-
 
 class EscalationTool(BaseTool):
     name = "escalation_tool"
 
     description = (
         "Escalate the conversation to a human receptionist/staff member. "
-        "Use when the patient request cannot be handled by the AI."
+        "Use when the patient confirms they want to speak with a human. "
+        "Returns the staff phone number for call forwarding or display."
     )
 
     args_schema = EscalationToolInput
 
     def __init__(self, conversation_service=None):
         self.conversation_service = conversation_service
+        self.escalation_phone = os.getenv("ESCALATION_PHONE", "")
 
     async def execute(
         self,
         reason: str,
         conversation_id: str = "",
-        patient_phone: str = "",
     ):
-        # If we have a conversation service and conversation_id, mark it for escalation
+        # Mark conversation for escalation if possible
         if self.conversation_service and conversation_id:
             from uuid import UUID
 
             try:
                 conv_uuid = UUID(conversation_id)
-                # End the AI conversation so staff can pick it up
                 self.conversation_service.end_conversation(conv_uuid)
             except (ValueError, Exception):
-                pass  # Don't fail escalation if conversation update fails
+                pass
 
         return {
             "escalated": True,
             "reason": reason,
-            "conversation_id": conversation_id,
-            "patient_phone": patient_phone,
+            "forward_call": True,
+            "escalation_phone": self.escalation_phone,
             "message": (
-                "Your request has been escalated to our reception staff. "
-                "A team member will assist you shortly."
+                "Escalation confirmed. In voice calls the system will automatically "
+                "forward the call. In chat, tell the patient they can reach staff "
+                f"directly at {self.escalation_phone}."
             ),
         }

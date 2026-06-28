@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { voiceService } from "../services/voiceService";
 import type { AxiosError } from "axios";
 
-export type CallStatus = "idle" | "calling" | "connected" | "ended" | "error";
+export type CallStatus = "idle" | "calling" | "connected" | "ended" | "error" | "verifying";
 
 export function useVoiceCall() {
   const [callStatus, setCallStatus] = useState<CallStatus>("idle");
@@ -14,22 +14,34 @@ export function useVoiceCall() {
     setCallStatus("calling");
 
     try {
-      const { data } = await voiceService.initiateCall({
+      const { data, status } = await voiceService.initiateCall({
         phone_number: phoneNumber || "",
         session_id: sessionId,
       });
 
+      // Handle verification required (Twilio trial account)
+      if (status === 202 || data.error === "verification_required") {
+        setCallStatus("verifying");
+        setError(
+          data.message ||
+          `Phone verification required. Check your phone for a call from Twilio and enter the code.`
+        );
+        return;
+      }
+
       if (data.success) {
-        setCallSid(data.call_sid);
+        setCallSid(data.call_sid || null);
         setCallStatus("connected");
       } else {
         setCallStatus("error");
         setError("Failed to initiate call");
       }
     } catch (err) {
-      const axiosErr = err as AxiosError<{ error: string }>;
+      const axiosErr = err as AxiosError<{ error: string; message?: string }>;
       const message =
-        axiosErr.response?.data?.error || "Failed to initiate call";
+        axiosErr.response?.data?.message ||
+        axiosErr.response?.data?.error ||
+        "Failed to initiate call";
       setError(message);
       setCallStatus("error");
     }

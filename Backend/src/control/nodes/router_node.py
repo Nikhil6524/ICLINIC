@@ -29,18 +29,20 @@ class RouterNode:
         if not latest_message:
             return {"current_intent": Intent.GENERAL.value}
 
-        # Build conversation context from recent messages for better classification
+        # Build compact conversation context (last 4 messages — less tokens = faster)
         recent_messages = []
-        for msg in messages[-8:]:  # Last 8 messages for better context
+        for msg in messages[-4:]:
             if hasattr(msg, "content") and msg.content:
                 role = "User" if msg.type == "human" else "Assistant"
-                recent_messages.append(f"{role}: {msg.content}")
+                # Truncate long assistant messages to save tokens
+                content = msg.content[:200] if role == "Assistant" else msg.content
+                recent_messages.append(f"{role}: {content}")
 
         conversation_text = "\n".join(recent_messages)
 
         # Append previous intent as hint for the router
         if previous_intent:
-            conversation_text += f"\n\n[Previous intent: {previous_intent}]"
+            conversation_text += f"\n[Previous intent: {previous_intent}]"
 
         # Route using LLM
         routing_result = self.intent_router.route(conversation_text)

@@ -8,6 +8,14 @@ interface ChatWindowProps {
   onSendMessage: (content: string) => void;
 }
 
+const SUGGESTIONS = [
+  "Book an appointment",
+  "Check availability",
+  "Cancel my appointment",
+  "Reschedule a visit",
+  "Talk to a human",
+];
+
 export function ChatWindow({ messages, isTyping, isConnected, onSendMessage }: ChatWindowProps) {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -52,18 +60,37 @@ export function ChatWindow({ messages, isTyping, isConnected, onSendMessage }: C
     target.style.height = `${Math.min(target.scrollHeight, 120)}px`;
   };
 
+  const handleSuggestionClick = (suggestion: string) => {
+    if (!isConnected) return;
+    onSendMessage(suggestion);
+  };
+
   return (
     <>
       <div className="chat-messages">
         {messages.length === 0 && (
           <div className="chat-empty">
             <div className="chat-empty-icon">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M12 2a3 3 0 0 0-3 3v1a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                <path d="M19 10H5a2 2 0 0 0-2 2v1a8 8 0 0 0 16 0v-1a2 2 0 0 0-2-2Z" />
+                <path d="M12 18v4" />
               </svg>
             </div>
-            <h3>Start a conversation</h3>
-            <p>Ask about appointments, doctors, availability, or anything else.</p>
+            <h3>How can I help you?</h3>
+            <p>I can help you book appointments, check doctor availability, reschedule or cancel visits.</p>
+            <div className="chat-empty-suggestions">
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  className="chat-empty-suggestion"
+                  onClick={() => handleSuggestionClick(s)}
+                  disabled={!isConnected}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -105,7 +132,7 @@ export function ChatWindow({ messages, isTyping, isConnected, onSendMessage }: C
             disabled={!input.trim() || !isConnected}
             aria-label="Send message"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M22 2L11 13" />
               <path d="M22 2L15 22L11 13L2 9L22 2Z" />
             </svg>

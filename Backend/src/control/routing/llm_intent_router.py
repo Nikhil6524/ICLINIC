@@ -10,39 +10,22 @@ from control.models.intent_score import IntentScore
 from control.models.routing_result import RoutingResult
 from langchain_core.messages import HumanMessage, SystemMessage
 
-INTENT_CLASSIFICATION_PROMPT = """You are an intent classifier for a medical clinic's AI front desk assistant.
+INTENT_CLASSIFICATION_PROMPT = """Classify the user's intent into ONE category. Reply with ONLY the label.
 
-Given the conversation context, classify the user's CURRENT intent into exactly ONE of these categories:
+Categories:
+- book_appointment: wants to book/schedule, describes symptoms, or continuing a booking flow
+- check_availability: checking what's available (not committing yet)
+- reschedule_appointment: wants to move/change an existing appointment
+- cancel_appointment: wants to cancel an existing appointment
+- escalate: wants a human, or medical emergency
+- general: greetings, thanks, goodbye, clinic info questions
 
-- book_appointment: User wants to book/schedule a new appointment, describes symptoms, or is continuing a booking flow (answering doctor/time/confirmation questions)
-- check_availability: User wants to check what doctors or time slots are available (but hasn't committed to booking yet)
-- reschedule_appointment: User wants to move/change/reschedule an existing appointment
-- cancel_appointment: User wants to cancel an existing appointment
-- escalate: User wants to speak to a human staff member, OR describes a medical emergency
-- general: ONLY for greetings (hi/hello), thank you, goodbye, or factual clinic questions (hours, location). NOT for symptoms.
+Rules:
+- If [Previous intent: X] is shown and the user gives a short reply (yes/no/time/name), keep the SAME intent.
+- Symptoms = book_appointment.
+- Only change intent if the user explicitly switches topic.
 
-CRITICAL RULES:
-
-1. CONTINUITY: If [Previous intent: X] is shown, the user is likely STILL in that flow unless they explicitly switch topics.
-   - "yes", "sure", "ok", "that one", "the first", "morning", "tomorrow", "Dr. Khan" → SAME intent as previous
-   - Time expressions during a booking/availability flow ("10:00", "after 10", "around 2", "what about 3 PM", "later") → SAME intent as previous
-   - Only change intent if the user EXPLICITLY introduces a new topic (e.g., "actually, cancel my appointment instead")
-
-2. SYMPTOMS = BOOKING: Any health complaint (pain, ache, fever, cough, dizziness) → book_appointment
-
-3. SHORT REPLIES CONTINUE THE FLOW:
-   - If assistant asked "When would you like to come in?" and user says "tomorrow" → book_appointment
-   - If assistant asked "Which one to cancel?" and user says "the first one" → cancel_appointment
-   - If assistant asked "Confirm the reschedule?" and user says "yes" → reschedule_appointment
-   - If assistant showed time slots and user says "10:00" or "after 10" or "what about 2 PM" → SAME intent (they're refining their choice, NOT switching intent)
-
-4. INTENT SWITCHES (only when explicit):
-   - "I want to cancel" / "cancel my appointment" → cancel_appointment (even if previously booking)
-   - "reschedule it" / "move my booking" → reschedule_appointment
-   - "talk to someone" / "human please" → escalate
-   - "book that slot" (after checking availability) → book_appointment
-
-Respond with ONLY the intent label. Nothing else."""
+Reply with ONLY the intent label."""
 
 
 class LLMIntentRouter:
@@ -63,12 +46,17 @@ class LLMIntentRouter:
         """
         messages = [
             SystemMessage(content=INTENT_CLASSIFICATION_PROMPT),
-            HumanMessage(content=f"Conversation:\n{conversation_text}\n\nIntent:"),
+            HumanMessage(content=conversation_text),
         ]
 
         try:
             response = self.llm.invoke(messages)
             raw = response.content.strip().lower().replace('"', "").replace("'", "")
+
+            # Strip any thinking tags (some models wrap in <think>)
+            import re
+
+            raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
 
             # Parse the intent from LLM response
             intent = self._parse_intent(raw)
@@ -103,7 +91,6 @@ class LLMIntentRouter:
             "human": Intent.ESCALATE,
             "general": Intent.GENERAL,
             "greet": Intent.GENERAL,
-            "faq": Intent.GENERAL,
         }
 
         for keyword, intent in mapping.items():

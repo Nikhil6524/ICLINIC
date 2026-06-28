@@ -6,9 +6,12 @@ export interface InitiateCallPayload {
 }
 
 export interface InitiateCallResponse {
-  success: boolean;
-  call_sid: string;
-  to: string;
+  success?: boolean;
+  call_sid?: string;
+  to?: string;
+  error?: string;
+  message?: string;
+  validation_code?: string;
 }
 
 export const voiceService = {

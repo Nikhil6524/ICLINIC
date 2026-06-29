@@ -44,8 +44,8 @@ class RouterNode:
         if previous_intent:
             conversation_text += f"\n[Previous intent: {previous_intent}]"
 
-        # Route using LLM
-        routing_result = self.intent_router.route(conversation_text)
+        # Route using LLM (async)
+        routing_result = await self.intent_router.route(conversation_text)
 
         if routing_result.intents:
             top_intent = routing_result.intents[0].intent

@@ -5,6 +5,8 @@ Uses a lightweight LLM call to classify user intent from conversation context.
 Replaces the deterministic embedding-based router for better accuracy.
 """
 
+import re
+
 from control.models.intent import Intent
 from control.models.intent_score import IntentScore
 from control.models.routing_result import RoutingResult
@@ -17,13 +19,15 @@ Categories:
 - check_availability: checking what's available (not committing yet)
 - reschedule_appointment: wants to move/change an existing appointment
 - cancel_appointment: wants to cancel an existing appointment
-- escalate: wants a human, or medical emergency
+- escalate: ONLY if user explicitly says "talk to a human" / "connect me to staff" / "speak to someone"
 - general: greetings, thanks, goodbye, clinic info questions
 
 Rules:
 - If [Previous intent: X] is shown and the user gives a short reply (yes/no/time/name), keep the SAME intent.
-- Symptoms = book_appointment.
+- Symptoms (pain, ache, fever) = book_appointment. Even "chest pain" = book_appointment unless they explicitly ask for a human.
+- Patient saying "I need an appointment" or "book" ALWAYS = book_appointment regardless of symptoms mentioned earlier.
 - Only change intent if the user explicitly switches topic.
+- DO NOT classify as escalate just because symptoms sound serious. Only escalate if user ASKS for a human.
 
 Reply with ONLY the intent label."""
 
@@ -34,9 +38,9 @@ class LLMIntentRouter:
     def __init__(self, llm):
         self.llm = llm
 
-    def route(self, conversation_text: str) -> RoutingResult:
+    async def route(self, conversation_text: str) -> RoutingResult:
         """
-        Classify intent from conversation text using LLM.
+        Classify intent from conversation text using async LLM call.
 
         Args:
             conversation_text: Recent conversation messages joined by newlines.
@@ -50,12 +54,10 @@ class LLMIntentRouter:
         ]
 
         try:
-            response = self.llm.invoke(messages)
+            response = await self.llm.ainvoke(messages)
             raw = response.content.strip().lower().replace('"', "").replace("'", "")
 
             # Strip any thinking tags (some models wrap in <think>)
-            import re
-
             raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
 
             # Parse the intent from LLM response

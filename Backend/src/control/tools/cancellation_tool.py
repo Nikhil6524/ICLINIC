@@ -109,8 +109,5 @@ class CancellationTool(BaseTool):
             sms_type="cancellation",
         )
 
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(coro)
-        except RuntimeError:
-            asyncio.run(coro)
+        loop = asyncio.get_running_loop()
+        loop.create_task(coro)

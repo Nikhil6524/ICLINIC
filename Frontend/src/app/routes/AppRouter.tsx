@@ -7,6 +7,7 @@ import { RegisterForm } from "../../features/auth/components/RegisterForm";
 import { Dashboard } from "../../features/dashboard/components/Dashboard";
 import { ChatPage } from "../../features/chat/components/ChatPage";
 import { CompleteProfile } from "../../features/profile/components/CompleteProfile";
+import { AdminDashboard } from "../../features/admin/components/AdminDashboard";
 
 export function AppRouter() {
   return (
@@ -24,6 +25,7 @@ export function AppRouter() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/complete-profile" element={<CompleteProfile />} />
+            <Route path="/admin" element={<AdminDashboard />} />
           </Route>
 
           {/* Catch-all redirect */}

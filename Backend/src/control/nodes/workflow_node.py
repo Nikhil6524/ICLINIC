@@ -379,6 +379,15 @@ class WorkflowNode:
             content = re.sub(
                 r"<function=\w+>\s*\{[^}]*\}\s*</function>", "", content
             ).strip()
+            # Also strip <think>...</think> tags from reasoning models
+            content = re.sub(
+                r"<think>.*?</think>", "", content, flags=re.DOTALL
+            ).strip()
+
+            if not content:
+                # LLM returned empty — provide a helpful fallback
+                content = "Sure, I can help with that. Could you give me a bit more detail on what you need?"
+
             return {
                 "messages": [AIMessage(content=content)],
                 "response": content,
@@ -510,7 +519,26 @@ class WorkflowNode:
                     "All set! I've sent you a confirmation with the details."
                 )
             else:
-                response_content = "Let me know how you'd like to proceed."
+                # No specific completion detected — generate a contextual fallback
+                # based on what tools were called
+                last_tool_names = (
+                    [tc["name"] for tc in tool_calls] if tool_calls else []
+                )
+                if "doctor_tool" in last_tool_names:
+                    doctors = updated_entities.get("doctors", [])
+                    if doctors:
+                        names = [d.get("full_name", "Unknown") for d in doctors[:3]]
+                        response_content = f"I found {', '.join(names)}. When would you like to come in — morning, afternoon, or evening?"
+                    else:
+                        response_content = "I couldn't find doctors in that specialty. Could you tell me more about what you need?"
+                elif "availability_tool" in last_tool_names:
+                    response_content = (
+                        "I've checked the schedule. What time works best for you?"
+                    )
+                elif "active_bookings_tool" in last_tool_names:
+                    response_content = "I've pulled up your appointments. Which one are you referring to?"
+                else:
+                    response_content = "How would you like to proceed?"
 
         # Strip any function tags from final response
         response_content = re.sub(

@@ -1,0 +1,640 @@
+/* ===== Admin Dashboard ===== */
+.admin {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px 32px;
+  min-height: 100vh;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.admin-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-logo {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.admin-badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-50) 100%);
+  color: var(--primary);
+  border: 1px solid rgba(13, 148, 136, 0.15);
+}
+
+.admin-header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.admin-user {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Stats Bar */
+.admin-stats {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.admin-stat {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 20px;
+  display: flex;
+  flex-direction: column;
+  min-width: 100px;
+}
+
+.admin-stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+
+.admin-stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-top: 4px;
+}
+
+/* Controls */
+.admin-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.admin-controls-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.admin-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-controls h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.admin-action-btn {
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: var(--font);
+  transition: all var(--transition-fast);
+}
+
+.admin-action-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-light);
+}
+
+.admin-action-btn--primary {
+  background: var(--primary);
+  color: var(--white);
+  border-color: var(--primary);
+}
+
+.admin-action-btn--primary:hover {
+  background: var(--primary-hover);
+  color: var(--white);
+}
+
+.admin-action-btn--secondary {
+  background: var(--primary-light);
+  color: var(--primary);
+  border-color: rgba(13, 148, 136, 0.2);
+}
+
+.admin-action-btn--secondary:hover {
+  background: var(--primary-50);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.admin-date-picker {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.admin-date-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.admin-date-btn:hover {
+  background: var(--bg);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.admin-date-input {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--white);
+}
+
+.admin-loading, .admin-empty {
+  padding: 60px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+/* ===== Gantt Chart ===== */
+.gantt-container {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.gantt-header, .gantt-row {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.gantt-header {
+  background: var(--bg);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.gantt-row:last-child {
+  border-bottom: none;
+}
+
+.gantt-doctor-label {
+  width: 180px;
+  min-width: 180px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-right: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+
+.gantt-header .gantt-doctor-label {
+  font-size: 11px;
+  justify-content: center;
+}
+
+.gantt-doctor-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.gantt-doctor-spec {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.gantt-timeline {
+  flex: 1;
+  position: relative;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+}
+
+.gantt-header .gantt-timeline {
+  display: flex;
+  align-items: center;
+  padding: 10px 0;
+}
+
+.gantt-hour-label {
+  flex: 1;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  border-left: 1px solid var(--border-light);
+  padding: 0 4px;
+}
+
+.gantt-hour-label:first-child {
+  border-left: none;
+}
+
+/* Gantt blocks */
+.gantt-block {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  border-radius: 4px;
+  min-width: 2px;
+  transition: opacity var(--transition-fast);
+}
+
+.gantt-block--available {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  z-index: 1;
+}
+
+.gantt-block--unavailable {
+  background: rgba(148, 163, 184, 0.25);
+  border: 1px dashed rgba(148, 163, 184, 0.5);
+  z-index: 2;
+}
+
+.gantt-block--booked {
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  z-index: 3;
+  cursor: pointer;
+}
+
+.gantt-block--booked:hover {
+  background: rgba(239, 68, 68, 0.35);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
+}
+
+.gantt-block--cancelled {
+  background: rgba(148, 163, 184, 0.15);
+  border: 1px dashed rgba(148, 163, 184, 0.4);
+  opacity: 0.6;
+}
+
+/* ===== Slot Detail Overlay ===== */
+.admin-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  z-index: 600;
+}
+
+.admin-slot-detail {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  width: 380px;
+  max-width: 90vw;
+  box-shadow: var(--shadow-xl);
+  z-index: 601;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.admin-slot-detail h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+
+.admin-slot-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.admin-slot-rows div {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+.admin-slot-rows span {
+  color: var(--text-muted);
+}
+
+.admin-slot-actions {
+  margin-bottom: 12px;
+}
+
+.admin-cancel-btn {
+  width: 100%;
+  padding: 11px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--white);
+  background: var(--danger);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  font-family: var(--font);
+}
+
+.admin-cancel-btn:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+.admin-cancel-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.admin-close-btn {
+  width: 100%;
+  padding: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-family: var(--font);
+  transition: all var(--transition-fast);
+}
+
+.admin-close-btn:hover {
+  background: var(--border);
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 800px) {
+  .admin {
+    padding: 16px;
+  }
+
+  .gantt-doctor-label {
+    width: 120px;
+    min-width: 120px;
+  }
+
+  .admin-controls {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+}
+
+
+/* ===== Legend ===== */
+.gantt-legend {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+
+.gantt-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.gantt-legend-swatch {
+  width: 14px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.gantt-legend--available {
+  background: rgba(16, 185, 129, 0.25);
+  border: 1px solid rgba(16, 185, 129, 0.5);
+}
+
+.gantt-legend--booked {
+  background: rgba(239, 68, 68, 0.25);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+}
+
+.gantt-legend--blocked {
+  background: rgba(148, 163, 184, 0.3);
+  border: 1px dashed rgba(148, 163, 184, 0.6);
+}
+
+/* ===== Modal ===== */
+.admin-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  width: 440px;
+  max-width: 92vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-xl);
+  z-index: 601;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.admin-modal h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.admin-modal-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.admin-modal-error {
+  font-size: 13px;
+  color: var(--danger);
+  background: var(--danger-bg);
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--danger-border);
+  margin-bottom: 12px;
+}
+
+.admin-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.admin-modal-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.admin-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-modal-field label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.admin-modal-field input,
+.admin-modal-field select {
+  padding: 10px 12px;
+  font-size: 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  transition: border-color var(--transition-fast);
+}
+
+.admin-modal-field input:focus,
+.admin-modal-field select:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  background: var(--white);
+}
+
+.admin-modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.admin-modal-save {
+  flex: 1;
+  padding: 11px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--white);
+  background: var(--primary);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-family: var(--font);
+  transition: background var(--transition-fast);
+}
+
+.admin-modal-save:hover:not(:disabled) { background: var(--primary-hover); }
+.admin-modal-save:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.admin-modal-save--warn { background: var(--warning); }
+.admin-modal-save--warn:hover:not(:disabled) { background: #d97706; }
+
+.admin-modal-save--danger { background: var(--danger); }
+.admin-modal-save--danger:hover:not(:disabled) { background: #dc2626; }
+
+.admin-modal-cancel {
+  flex: 1;
+  padding: 11px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-family: var(--font);
+  transition: all var(--transition-fast);
+}
+
+.admin-modal-cancel:hover { background: var(--border); }
+
+
+/* Hint text under time pickers */
+.admin-modal-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: -4px;
+  padding-left: 2px;
+}
+
+.admin-modal-hint--error {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+
+/* Slot status badge */
+.admin-slot-status {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.admin-slot-status--booked {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.admin-slot-status--cancelled {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.admin-slot-status--completed {
+  background: var(--success-bg);
+  color: var(--success);
+}

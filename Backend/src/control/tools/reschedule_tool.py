@@ -129,8 +129,5 @@ class RescheduleTool(BaseTool):
             sms_type="reschedule",
         )
 
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(coro)
-        except RuntimeError:
-            asyncio.run(coro)
+        loop = asyncio.get_running_loop()
+        loop.create_task(coro)

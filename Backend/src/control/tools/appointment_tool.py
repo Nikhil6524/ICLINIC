@@ -181,7 +181,7 @@ class AppointmentTool(BaseTool):
         if not phone.startswith("+"):
             phone = f"+91{phone}" if len(phone) == 10 else f"+{phone}"
 
-        # Run the async sms tool
+        # Fire-and-forget SMS in the running event loop
         coro = self.sms_tool.execute(
             to_phone=phone,
             patient_name=patient_name,
@@ -191,9 +191,5 @@ class AppointmentTool(BaseTool):
             sms_type="confirmation",
         )
 
-        # Handle both sync and async contexts
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(coro)
-        except RuntimeError:
-            asyncio.run(coro)
+        loop = asyncio.get_running_loop()
+        loop.create_task(coro)

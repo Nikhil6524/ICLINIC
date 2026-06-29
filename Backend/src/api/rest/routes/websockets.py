@@ -326,10 +326,13 @@ async def websocket_chat(websocket: WebSocket, token: str = Query(default="")):
                 try:
                     print(f"[WS] Invoking graph for session={session_id}...")
                     result = await graph.ainvoke(invoke_input, config=config)
-                    response = result.get(
-                        "response",
-                        "I'm sorry, I couldn't process that.",
-                    )
+                    response = (result.get("response") or "").strip()
+
+                    # Don't send empty responses to the user
+                    if not response:
+                        print("[WS] Empty response from graph — skipping send")
+                        continue
+
                     print(f"[WS] Response: {response[:100]}")
 
                     await websocket.send_json(
